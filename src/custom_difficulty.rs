@@ -143,7 +143,7 @@ impl<T: Default> Default for Spanned<T> {
 }
 
 //FIXME: make newtypes for fields that need a default value.
-#[derive(Debug, PartialEq, Deserialize)]
+#[derive(Debug, PartialEq, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct CustomDifficulty {
     /// The difficulty name
