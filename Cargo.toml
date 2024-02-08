@@ -7,8 +7,9 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.79"
+ariadne = { version = "0.4.0", features = ["auto-color"] }
+chumsky = { version = "1.0.0-alpha.6", features = ["label", "serde"] }
 clap = { version = "4.4.18", features = ["derive"] }
-codespan-reporting = "0.11.1"
 serde = { version = "1.0.196", features = ["derive"] }
 serde_json = { version = "1.0.113", features = ["preserve_order"] }
 tracing = { version = "0.1.40", features = ["attributes"] }
