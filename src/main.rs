@@ -1,5 +1,6 @@
 #![feature(let_chains)]
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context};
@@ -10,7 +11,6 @@ use serde::Deserialize;
 use tracing::*;
 
 use crate::custom_difficulty::CustomDifficulty;
-use crate::edit_distance::edit_distance;
 use crate::parser::Json;
 
 mod custom_difficulty;
@@ -106,6 +106,30 @@ fn main() -> anyhow::Result<()> {
     let mut diagnostics = Vec::new();
     let mut custom_difficulty = CustomDifficulty::default();
 
+    // There are two kinds of lints:
+    // 1. Early-pass lints: these lints are performed while parsing the CD JSON into the CD struct.
+    // 2. Late-pass lints: these lints are performed on the built CD struct.
+
+    handle_top_level_members(
+        &mut custom_difficulty,
+        &path,
+        &mut diagnostics,
+        &top_level_members,
+    );
+
+    for diagnostic in diagnostics {
+        diagnostic.print((&path, Source::from(&json_string)))?;
+    }
+
+    Ok(())
+}
+
+fn handle_top_level_members<'a>(
+    _cd: &mut CustomDifficulty,
+    path: &'a String,
+    diagnostics: &mut Vec<Report<'_, (&'a String, std::ops::Range<usize>)>>,
+    top_level_members: &BTreeMap<Spanned<String>, Spanned<Json>>,
+) {
     const TOP_LEVEL_MEMBER_NAMES: [&'static str; 46] = [
         "Name",
         "Description",
@@ -155,11 +179,7 @@ fn main() -> anyhow::Result<()> {
         "EscortMule",
     ];
 
-    // There are two kinds of lints:
-    // 1. Early-pass lints: these lints are performed while parsing the CD JSON into the CD struct.
-    // 2. Late-pass lints: these lints are performed on the built CD struct.
-
-    for (member_name, member_val) in top_level_members {
+    for (member_name, _member_val) in top_level_members {
         match member_name.val.as_str() {
             "Name" => todo!(),
             "Description" => todo!(),
@@ -208,10 +228,10 @@ fn main() -> anyhow::Result<()> {
             "SeasonalEvents" => todo!(),
             "EscortMule" => todo!(),
             m => {
-                let mut report = Report::build(ReportKind::Error, &path, member_name.span.start)
+                let mut report = Report::build(ReportKind::Error, path, member_name.span.start)
                     .with_message(format!("unexpected member: \"{}\"", m))
                     .with_label(
-                        Label::new((&path, member_name.span.into_range())).with_color(Color::Red),
+                        Label::new((path, member_name.span.into_range())).with_color(Color::Red),
                     );
 
                 if let Some(suggestion) =
@@ -227,10 +247,4 @@ fn main() -> anyhow::Result<()> {
             }
         }
     }
-
-    for diagnostic in diagnostics {
-        diagnostic.print((&path, Source::from(&json_string)))?;
-    }
-
-    Ok(())
 }
