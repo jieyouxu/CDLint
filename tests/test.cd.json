@@ -1,5 +1,12 @@
 {
     "Name": "",
     "Description": "",
-    "Name": ""
+    "EnemyDescriptors": {
+        "ED_Custom": {}
+    },
+    "EnemyPool": {
+        "clear": false,
+        "add": ["ED_Custom"],
+        "remove": ["ED_TAN90"]
+    }
 }

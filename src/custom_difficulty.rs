@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use chumsky::span::SimpleSpan;
+use indexmap::IndexMap;
 use serde::Deserialize;
 
 use crate::spanned::Spanned;
@@ -268,7 +269,7 @@ pub struct CustomDifficulty {
     /// be used to define new `EnemyDescriptor`s that can be added to pools or modify (or completely
     /// replace) existing `EnemyDescriptor`s.
     #[serde(default)]
-    pub enemy_descriptors: Spanned<BTreeMap<Spanned<String>, Spanned<EnemyDescriptor>>>,
+    pub enemy_descriptors: Spanned<IndexMap<Spanned<String>, Spanned<EnemyDescriptor>>>,
     /// The enemy pool which is what the game pulls `EnemyDescriptor`s from when attempting to spawn
     /// enemies. This pool is built by pulling enemies from the `CommonEnemies`,
     /// `DisruptiveEnemies`, and `SpecialEnemies` pools upon mission start. It is recommended to not

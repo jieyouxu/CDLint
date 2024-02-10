@@ -6,12 +6,16 @@ use anyhow::{bail, Context};
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::prelude::*;
 use clap::Parser as ClapParser;
+use confique::toml::FormatOptions;
+use confique::Config as DeriveConfig;
 use tracing::*;
 
+use crate::config::Config;
 use crate::custom_difficulty::CustomDifficulty;
 use crate::parser::Json;
 use crate::spanned::Spanned;
 
+mod config;
 mod custom_difficulty;
 mod edit_distance;
 mod handlers;
@@ -38,6 +42,19 @@ pub enum ValidationResult<'d, T> {
 fn main() -> anyhow::Result<()> {
     logging::setup_logging();
 
+    let config_path = std::env::current_exe()?
+        .parent()
+        .unwrap()
+        .join("config.toml");
+    debug!(?config_path);
+    if !config_path.exists() {
+        debug!("generating default config at `{}`", config_path.display());
+        let default_config = confique::toml::template::<Config>(FormatOptions::default());
+        std::fs::write(&config_path, &default_config)?;
+    }
+
+    let config = Config::builder().env().file(&config_path).load()?;
+
     let cli = Args::parse();
 
     debug!(input = ?cli.input);
@@ -55,6 +72,7 @@ fn main() -> anyhow::Result<()> {
 
     let (custom_difficulty_json, errors) =
         parser::parser().parse(&json_string).into_output_errors();
+    debug!(?errors);
 
     errors.into_iter().for_each(|e| {
         Report::build(ReportKind::Error, &path, e.span().start)
@@ -72,8 +90,6 @@ fn main() -> anyhow::Result<()> {
     let Some(custom_difficulty_json) = custom_difficulty_json else {
         bail!("failed to parse Custom Difficulty JSON");
     };
-
-    debug!(?custom_difficulty_json);
 
     let Spanned {
         val: Json::Object(Spanned {
@@ -102,7 +118,13 @@ fn main() -> anyhow::Result<()> {
     )
     .context("trying to process top level members")?;
 
-    late_lints::lint_empty_cd_name(&custom_difficulty, &path, &mut diagnostics);
+    late_lints::lint_empty_cd_name(&config, &custom_difficulty, &path, &mut diagnostics);
+    late_lints::lint_undefined_enemy_descriptors(
+        &config,
+        &custom_difficulty,
+        &path,
+        &mut diagnostics,
+    );
 
     for diagnostic in diagnostics {
         diagnostic.print((&path, Source::from(&json_string)))?;

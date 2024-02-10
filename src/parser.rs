@@ -1,6 +1,7 @@
 //! Parser for a Custom Difficulty JSON.
 
 use chumsky::prelude::*;
+use tracing::*;
 
 use crate::Spanned;
 

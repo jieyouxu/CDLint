@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::bail;
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::span::SimpleSpan;
+use indexmap::IndexMap;
+use tracing::*;
 
 use crate::custom_difficulty::{
     ArrayOrSingleItem, CustomDifficulty, EnemyDescriptor, EnemyPool, EscortMule, PawnStats, Range,
@@ -127,12 +129,10 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
             bail!("expected a weighted range object");
         };
 
-        let mut unique_members = BTreeMap::new();
+        let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
         let mut unique_member_names = BTreeSet::new();
         for (member_name, member_val) in &obj.val {
             if !unique_member_names.insert(member_name.val.to_owned()) {
-                unique_members.insert(member_name.to_owned(), member_val.to_owned());
-
                 Report::build(ReportKind::Error, path, member_name.span.start)
                     .with_message(format!(
                         "member \"{}\" defined multiple times",
@@ -166,6 +166,8 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
                     .finish()
                     .print((path, Source::from(src)))?;
                 bail!("duplicate member detected");
+            } else {
+                unique_members.insert(member_name.to_owned(), member_val.to_owned());
             }
         }
 
@@ -238,13 +240,11 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
                 bail!("expected a range object");
             };
 
-            let mut unique_members = BTreeMap::new();
+            let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
             let mut unique_member_names = BTreeSet::new();
 
             for (member_name, member_val) in &obj.val {
                 if !unique_member_names.insert(member_name.val.to_owned()) {
-                    unique_members.insert(member_name.to_owned(), member_val.to_owned());
-
                     Report::build(ReportKind::Error, path, member_name.span.start)
                         .with_message(format!(
                             "member \"{}\" defined multiple times",
@@ -278,6 +278,8 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
                         .finish()
                         .print((path, Source::from(src)))?;
                     bail!("duplicate member detected");
+                } else {
+                    unique_members.insert(member_name.to_owned(), member_val.to_owned());
                 }
             }
 
@@ -441,12 +443,10 @@ fn handle_range<'d, 'a, 'n, T>(
         bail!("expected a range object");
     };
 
-    let mut unique_members = BTreeMap::new();
+    let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
     let mut unique_member_names = BTreeSet::new();
     for (member_name, member_val) in &obj.val {
         if !unique_member_names.insert(member_name.val.to_owned()) {
-            unique_members.insert(member_name.to_owned(), member_val.to_owned());
-
             Report::build(ReportKind::Error, path, member_name.span.start)
                 .with_message(format!(
                     "member \"{}\" defined multiple times",
@@ -480,6 +480,8 @@ fn handle_range<'d, 'a, 'n, T>(
                 .finish()
                 .print((path, Source::from(src)))?;
             bail!("duplicate member detected");
+        } else {
+            unique_members.insert(member_name.to_owned(), member_val.to_owned());
         }
     }
 
@@ -588,14 +590,13 @@ fn handle_enemy_pool<'d, 'a, 'n>(
         bail!("expected a enemy pool object");
     };
 
-    let mut unique_members = BTreeMap::new();
+    let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
     let mut unique_member_names = BTreeSet::new();
 
     const EXPECTED_MEMBERS: [&'static str; 3] = ["clear", "add", "remove"];
 
     for (member_name, member_val) in &obj.val {
         if !unique_member_names.insert(member_name.val.to_owned()) {
-            unique_members.insert(member_name.to_owned(), member_val.to_owned());
             Report::build(ReportKind::Error, path, member_name.span.start)
                 .with_message(format!(
                     "member \"{}\" defined multiple times",
@@ -630,6 +631,8 @@ fn handle_enemy_pool<'d, 'a, 'n>(
                 .print((path, Source::from(src)))?;
 
             bail!("duplicate member detected");
+        } else {
+            unique_members.insert(member_name.to_owned(), member_val.to_owned());
         }
 
         if !EXPECTED_MEMBERS.contains(&member_name.val.as_str()) {
@@ -755,7 +758,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
     _diag: &mut Diagnostics<'d>,
     path: &'d String,
     src: &'a str,
-    target: &mut Spanned<BTreeMap<Spanned<String>, Spanned<EnemyDescriptor>>>,
+    target: &mut Spanned<IndexMap<Spanned<String>, Spanned<EnemyDescriptor>>>,
     member_val: &Spanned<Json>,
     _member_name: &'n str,
     f64_validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, f64>,
@@ -770,14 +773,12 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
         bail!("expected a enemy descriptors object");
     };
 
-    let mut descriptors = BTreeMap::new();
+    let mut descriptors = IndexMap::default();
 
-    let mut unique_members = BTreeMap::new();
+    let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
     let mut unique_member_names = BTreeSet::new();
     for (name, ed) in &obj.val {
         if !unique_member_names.insert(name.val.to_owned()) {
-            unique_members.insert(name.to_owned(), ed.to_owned());
-
             Report::build(ReportKind::Error, path, name.span.start)
                 .with_message(format!(
                     "member \"{}\" defined multiple times",
@@ -812,14 +813,16 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                 .print((path, Source::from(src)))?;
 
             bail!("duplicate member detected");
+        } else {
+            unique_members.insert(name.to_owned(), ed.to_owned());
         }
     }
 
     for (name, ed) in &unique_members {
         let Json::Object(ed_obj) = &ed.val else {
-            Report::build(ReportKind::Error, path, member_val.span.start)
+            Report::build(ReportKind::Error, path, ed.span.start)
                 .with_message("expected an enemy descriptors object")
-                .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
+                .with_label(Label::new((path, ed.span.into_range())).with_color(Color::Red))
                 .finish()
                 .print((path, Source::from(src)))?;
             bail!("expected a enemy descriptor object");
@@ -842,24 +845,22 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
             "PawnStats",
         ];
 
-        let mut unique_members = BTreeMap::new();
+        let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
         let mut unique_member_names = BTreeSet::new();
 
         for (ed_member_name, ed_member_value) in &ed_obj.val {
             if !unique_member_names.insert(ed_member_name.val.to_owned()) {
-                unique_members.insert(ed_member_name.to_owned(), ed_member_value.to_owned());
-
-                Report::build(ReportKind::Error, path, name.span.start)
+                Report::build(ReportKind::Error, path, ed_member_name.span.start)
                     .with_message(format!(
                         "member \"{}\" defined multiple times",
-                        name.val.as_str().fg(Color::Blue)
+                        ed_member_name.val.as_str().fg(Color::Blue)
                     ))
                     .with_label(
                         Label::new((
                             path,
                             unique_members
                                 .iter()
-                                .find(|(k, _)| k.val == name.val)
+                                .find(|(k, _)| k.val == ed_member_name.val)
                                 .unwrap()
                                 .0
                                 .span
@@ -867,22 +868,24 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                         ))
                         .with_message(format!(
                             "member \"{}\" first defined here",
-                            name.val.as_str().fg(Color::Blue)
+                            ed_member_name.val.as_str().fg(Color::Blue)
                         ))
                         .with_color(Color::Red),
                     )
                     .with_label(
-                        Label::new((path, name.span.into_range()))
+                        Label::new((path, ed_member_name.span.into_range()))
                             .with_color(Color::Red)
                             .with_message(format!(
                                 "member \"{}\" later redefined here",
-                                name.val.as_str().fg(Color::Blue)
+                                ed_member_name.val.as_str().fg(Color::Blue)
                             )),
                     )
                     .finish()
                     .print((path, Source::from(src)))?;
 
                 bail!("duplicate member detected");
+            } else {
+                unique_members.insert(ed_member_name.to_owned(), ed_member_value.to_owned());
             }
 
             if !EXPECTED_MEMBERS.contains(&ed_member_name.val.as_str()) {
@@ -909,7 +912,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
         let base_member = unique_members.iter().find(|(k, _)| k.val == "Base");
         let base = if let Some((_, base_member_val)) = base_member {
             let Json::Str(n) = &base_member_val.val else {
-                unexpected_value_kind(path, member_val, "string")
+                unexpected_value_kind(path, base_member_val, "string")
                     .print((path, Source::from(src)))?;
                 bail!(
                     "unexpected JSON kind {} found in \"Base\" member value; expected string",
@@ -1268,12 +1271,10 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                 );
             };
 
-            let mut unique_members = BTreeMap::new();
+            let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
             let mut unique_member_names = BTreeSet::new();
             for (member_name, member_val) in &pawn_stats_map.val {
                 if !unique_member_names.insert(member_name.val.to_owned()) {
-                    unique_members.insert(member_name.to_owned(), member_val.to_owned());
-
                     Report::build(ReportKind::Error, path, member_name.span.start)
                         .with_message(format!(
                             "member \"{}\" defined multiple times",
@@ -1307,6 +1308,8 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                         .finish()
                         .print((path, Source::from(src)))?;
                     bail!("duplicate member detected");
+                } else {
+                    unique_members.insert(member_name.to_owned(), member_val.to_owned());
                 }
             }
 
@@ -1471,12 +1474,10 @@ fn handle_escort_mule<'d, 'a, 'n>(
     ];
 
     let mut unique_member_names = BTreeSet::new();
-    let mut unique_members = BTreeMap::new();
+    let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
 
     for (member_name, member_val) in &obj.val {
         if !unique_member_names.insert(member_name.val.to_owned()) {
-            unique_members.insert(member_name.to_owned(), member_val.to_owned());
-
             Report::build(ReportKind::Error, path, member_name.span.start)
                 .with_message(format!(
                     "member \"{}\" defined multiple times",
@@ -1511,6 +1512,8 @@ fn handle_escort_mule<'d, 'a, 'n>(
                 .print((path, Source::from(src)))?;
 
             bail!("duplicate member detected");
+        } else {
+            unique_members.insert(member_name.to_owned(), member_val.to_owned());
         }
 
         if !EXPECTED_MEMBERS.contains(&member_name.val.as_str()) {
@@ -1674,12 +1677,10 @@ pub(crate) fn handle_top_level_members<'d, 'a>(
     cd: &mut CustomDifficulty,
     top_level_members: &Vec<(Spanned<String>, Spanned<Json>)>,
 ) -> anyhow::Result<()> {
-    let mut unique_top_level_members = BTreeMap::new();
+    let mut unique_top_level_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
     let mut unique_top_level_member_names = BTreeSet::new();
     for (member_name, member_val) in top_level_members {
         if !unique_top_level_member_names.insert(member_name.val.to_owned()) {
-            unique_top_level_members.insert(member_name.to_owned(), member_val.to_owned());
-
             Report::build(ReportKind::Error, path, member_name.span.start)
                 .with_message(format!(
                     "member \"{}\" defined multiple times",
@@ -1714,6 +1715,8 @@ pub(crate) fn handle_top_level_members<'d, 'a>(
                 .print((path, Source::from(src)))?;
 
             bail!("duplicate top-level member detected");
+        } else {
+            unique_top_level_members.insert(member_name.to_owned(), member_val.to_owned());
         }
     }
 
@@ -2141,7 +2144,14 @@ pub(crate) fn handle_top_level_members<'d, 'a>(
                 found_member_name,
                 mk_finite_nonnegative_f64_validator(path),
             )?,
-            "SeasonalEvents" => todo!(),
+            "SeasonalEvents" => diag.push(
+                Report::build(ReportKind::Warning, path, member_name.span.start)
+                    .with_message("\"SeasonalEvents\" is no longer functional")
+                    .with_label(
+                        Label::new((path, member_name.span.into_range())).with_color(Color::Yellow),
+                    )
+                    .finish(),
+            ),
             m => {
                 handle_unknown_top_level_member(path, src, &member_name, m)?;
             }
