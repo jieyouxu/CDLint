@@ -10,11 +10,11 @@ use anyhow::{bail, Context};
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::prelude::*;
 use clap::Parser as ClapParser;
-use custom_difficulty::ArrayOrSingleItem;
+use custom_difficulty::{ArrayOrSingleItem, WeightedRange};
 use serde::Deserialize;
 use tracing::*;
 
-use crate::custom_difficulty::CustomDifficulty;
+use crate::custom_difficulty::{CustomDifficulty, Range};
 use crate::parser::Json;
 
 mod custom_difficulty;
@@ -140,13 +140,13 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn handle_str<'d, 'a>(
+fn handle_str<'d, 'a, 'n>(
     _diag: &mut Diagnostics<'d>,
     path: &'d String,
     src: &'a str,
     target: &mut Spanned<String>,
     member_val: &Spanned<Json>,
-    member_name: &'static str,
+    member_name: &'n str,
 ) -> anyhow::Result<()> {
     *target = if let Json::Str(s) = &member_val.val {
         s.to_owned()
@@ -157,14 +157,14 @@ fn handle_str<'d, 'a>(
     Ok(())
 }
 
-fn handle_single_item_or_array_number<'d, 'a, T: 'static>(
+fn handle_single_item_or_array_number<'d, 'a, 'n, T: 'static>(
     diag: &mut Diagnostics<'d>,
     path: &'d String,
     src: &'a str,
     expected_ty: &'static str,
     target: &mut Spanned<ArrayOrSingleItem<T>>,
     member_val: &Spanned<Json>,
-    member_name: &'static str,
+    member_name: &'n str,
     validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, T>,
 ) -> anyhow::Result<()> {
     use std::any::TypeId;
@@ -216,6 +216,453 @@ fn handle_single_item_or_array_number<'d, 'a, T: 'static>(
     Ok(())
 }
 
+fn handle_weighted_range_vec<'d, 'a, 'n, T>(
+    _diag: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &'a str,
+    target: &mut Spanned<Vec<Spanned<WeightedRange<T>>>>,
+    member_val: &Spanned<Json>,
+    member_name: &'n str,
+    weight_validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, f64>,
+    range_validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, T>,
+) -> anyhow::Result<()> {
+    let mut arr = Vec::new();
+
+    let Json::Array(a) = &member_val.val else {
+        Report::build(ReportKind::Error, path, member_val.span.start)
+            .with_message(format!(
+                "expected \"{}\"'s value to be an array of weighted ranges",
+                member_name.fg(Color::Blue)
+            ))
+            .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
+            .finish()
+            .print((path, Source::from(src)))?;
+        bail!("expected an array of weighted ranges");
+    };
+
+    for elem in &a.val {
+        let Json::Object(obj) = &elem.val else {
+            Report::build(ReportKind::Error, path, elem.span.start)
+                .with_message("expected a weighted range object")
+                .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
+                .finish()
+                .print((path, Source::from(src)))?;
+            bail!("expected a weighted range object");
+        };
+
+        let mut unique_members = BTreeMap::new();
+        for (member_name, member_val) in &obj.val {
+            if let Err(OccupiedError { entry, .. }) =
+                unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
+            {
+                Report::build(ReportKind::Error, path, member_name.span.start)
+                    .with_message(format!(
+                        "member \"{}\" defined multiple times",
+                        member_name.val.as_str().fg(Color::Blue)
+                    ))
+                    .with_label(
+                        Label::new((path, entry.key().span.into_range()))
+                            .with_message(format!(
+                                "member \"{}\" first defined here",
+                                member_name.val.as_str().fg(Color::Blue)
+                            ))
+                            .with_color(Color::Red),
+                    )
+                    .with_label(
+                        Label::new((path, member_name.span.into_range()))
+                            .with_color(Color::Red)
+                            .with_message(format!(
+                                "member \"{}\" later redefined here",
+                                member_name.val.as_str().fg(Color::Blue)
+                            )),
+                    )
+                    .finish()
+                    .print((path, Source::from(src)))?;
+                bail!("duplicate member detected");
+            }
+        }
+
+        const EXPECTED_MEMBERS: [&'static str; 2] = ["weight", "range"];
+
+        for found_member_name in unique_members.keys() {
+            if !EXPECTED_MEMBERS.contains(&found_member_name.val.as_str()) {
+                let mut report =
+                    Report::build(ReportKind::Error, path, found_member_name.span.start)
+                        .with_message(format!(
+                            "unexpected member \"{}\" when expecting a weighted range",
+                            found_member_name.val
+                        ))
+                        .with_label(
+                            Label::new((path, found_member_name.span.into_range()))
+                                .with_color(Color::Red),
+                        );
+                if let Some(suggestion) = edit_distance::find_best_match_for_name(
+                    &EXPECTED_MEMBERS,
+                    &found_member_name.val,
+                    Some(3),
+                ) {
+                    report.set_help(format!(
+                        "did you mean {} instead?",
+                        suggestion.fg(Color::Blue)
+                    ));
+                }
+                report.finish().print((path, Source::from(src)))?;
+                bail!("unexpected member when trying to process a weighted range object");
+            }
+        }
+
+        let weight_member = unique_members
+            .iter()
+            .find(|(k, _)| k.val == "weight")
+            .map(|(_, v)| v)
+            .unwrap();
+        let weight = {
+            let Json::Num(n) = &weight_member.val else {
+                unexpected_value_kind(path, member_val, "number")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "unexpected JSON kind {} found in \"weight\" member value; expected number",
+                    member_val.val.kind_desc()
+                );
+            };
+            match weight_validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => val,
+                ValidationResult::Err(report) => {
+                    report.print((path, Source::from(src)))?;
+                    bail!("invalid weight value");
+                }
+            }
+        };
+
+        let range_member = unique_members
+            .iter()
+            .find(|(k, _)| k.val == "range")
+            .map(|(_, v)| v)
+            .unwrap();
+        let range = {
+            let Json::Object(obj) = &range_member.val else {
+                Report::build(ReportKind::Error, path, range_member.span.start)
+                    .with_message("expected a range object")
+                    .with_label(
+                        Label::new((path, range_member.span.into_range())).with_color(Color::Red),
+                    )
+                    .finish()
+                    .print((path, Source::from(src)))?;
+                bail!("expected a range object");
+            };
+
+            let mut unique_members = BTreeMap::new();
+            for (member_name, member_val) in &obj.val {
+                if let Err(OccupiedError { entry, .. }) =
+                    unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
+                {
+                    Report::build(ReportKind::Error, path, member_name.span.start)
+                        .with_message(format!(
+                            "member \"{}\" defined multiple times",
+                            member_name.val.as_str().fg(Color::Blue)
+                        ))
+                        .with_label(
+                            Label::new((path, entry.key().span.into_range()))
+                                .with_message(format!(
+                                    "member \"{}\" first defined here",
+                                    member_name.val.as_str().fg(Color::Blue)
+                                ))
+                                .with_color(Color::Red),
+                        )
+                        .with_label(
+                            Label::new((path, member_name.span.into_range()))
+                                .with_color(Color::Red)
+                                .with_message(format!(
+                                    "member \"{}\" later redefined here",
+                                    member_name.val.as_str().fg(Color::Blue)
+                                )),
+                        )
+                        .finish()
+                        .print((path, Source::from(src)))?;
+                    bail!("duplicate member detected");
+                }
+            }
+
+            const EXPECTED_MEMBERS: [&'static str; 2] = ["min", "max"];
+
+            for found_member_name in unique_members.keys() {
+                if !EXPECTED_MEMBERS.contains(&found_member_name.val.as_str()) {
+                    let mut report =
+                        Report::build(ReportKind::Error, path, found_member_name.span.start)
+                            .with_message(format!(
+                                "unexpected member \"{}\" when expecting a range",
+                                found_member_name.val
+                            ))
+                            .with_label(
+                                Label::new((path, found_member_name.span.into_range()))
+                                    .with_color(Color::Red),
+                            );
+                    if let Some(suggestion) = edit_distance::find_best_match_for_name(
+                        &EXPECTED_MEMBERS,
+                        &found_member_name.val,
+                        Some(1),
+                    ) {
+                        report.set_help(format!(
+                            "did you mean {} instead?",
+                            suggestion.fg(Color::Blue)
+                        ));
+                    }
+                    report.finish().print((path, Source::from(src)))?;
+                    bail!("unexpected member when trying to process a range object");
+                }
+            }
+
+            let min_member = unique_members
+                .iter()
+                .find(|(k, _)| k.val == "min")
+                .map(|(_, v)| v)
+                .unwrap();
+            let min = {
+                let Json::Num(n) = &min_member.val else {
+                    unexpected_value_kind(path, member_val, "number")
+                        .print((path, Source::from(src)))?;
+                    bail!(
+                        "unexpected JSON kind {} found in \"min\" member value; expected number",
+                        member_val.val.kind_desc()
+                    );
+                };
+                match range_validate(Box::new(n.val), n.span) {
+                    ValidationResult::Ok(val) => val,
+                    ValidationResult::Err(report) => {
+                        report.print((path, Source::from(src)))?;
+                        bail!("invalid min value");
+                    }
+                }
+            };
+
+            let max_member = unique_members
+                .iter()
+                .find(|(k, _)| k.val == "max")
+                .map(|(_, v)| v)
+                .unwrap();
+            let max = {
+                let Json::Num(n) = &max_member.val else {
+                    unexpected_value_kind(path, member_val, "number")
+                        .print((path, Source::from(src)))?;
+                    bail!(
+                        "unexpected JSON kind {} found in \"max\" member value; expected number",
+                        member_val.val.kind_desc()
+                    );
+                };
+                match range_validate(Box::new(n.val), n.span) {
+                    ValidationResult::Ok(val) => val,
+                    ValidationResult::Err(report) => {
+                        report.print((path, Source::from(src)))?;
+                        bail!("invalid max value");
+                    }
+                }
+            };
+
+            Range {
+                min: Spanned {
+                    span: min_member.span,
+                    val: min,
+                },
+                max: Spanned {
+                    span: max_member.span,
+                    val: max,
+                },
+            }
+        };
+
+        arr.push(Spanned {
+            span: elem.span,
+            val: WeightedRange {
+                weight: Spanned {
+                    span: weight_member.span,
+                    val: weight,
+                },
+                range: Spanned {
+                    span: range_member.span,
+                    val: range,
+                },
+            },
+        });
+    }
+
+    *target = Spanned {
+        span: member_val.span,
+        val: arr,
+    };
+
+    Ok(())
+}
+
+fn handle_number<'d, 'a, 'n, T>(
+    _diag: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &'a str,
+    target: &mut Spanned<T>,
+    member_val: &Spanned<Json>,
+    member_name: &'n str,
+    validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, T>,
+) -> anyhow::Result<()> {
+    let Json::Num(n) = &member_val.val else {
+        unexpected_value_kind(path, member_val, "number").print((path, Source::from(src)))?;
+        bail!(
+            "unexpected JSON kind {} found in \"{member_name}\" member value; expected number",
+            member_val.val.kind_desc()
+        );
+    };
+    let val = match validate(Box::new(n.val), n.span) {
+        ValidationResult::Ok(val) => val,
+        ValidationResult::Err(report) => {
+            report.print((path, Source::from(src)))?;
+            bail!("invalid value");
+        }
+    };
+
+    *target = Spanned {
+        span: member_val.span,
+        val,
+    };
+
+    Ok(())
+}
+
+fn handle_range<'d, 'a, 'n, T>(
+    _diag: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &'a str,
+    target: &mut Spanned<Range<T>>,
+    member_val: &Spanned<Json>,
+    _member_name: &'n str,
+    validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, T>,
+) -> anyhow::Result<()> {
+    let Json::Object(obj) = &member_val.val else {
+        Report::build(ReportKind::Error, path, member_val.span.start)
+            .with_message("expected a range object")
+            .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
+            .finish()
+            .print((path, Source::from(src)))?;
+        bail!("expected a range object");
+    };
+
+    let mut unique_members = BTreeMap::new();
+    for (member_name, member_val) in &obj.val {
+        if let Err(OccupiedError { entry, .. }) =
+            unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
+        {
+            Report::build(ReportKind::Error, path, member_name.span.start)
+                .with_message(format!(
+                    "member \"{}\" defined multiple times",
+                    member_name.val.as_str().fg(Color::Blue)
+                ))
+                .with_label(
+                    Label::new((path, entry.key().span.into_range()))
+                        .with_message(format!(
+                            "member \"{}\" first defined here",
+                            member_name.val.as_str().fg(Color::Blue)
+                        ))
+                        .with_color(Color::Red),
+                )
+                .with_label(
+                    Label::new((path, member_name.span.into_range()))
+                        .with_color(Color::Red)
+                        .with_message(format!(
+                            "member \"{}\" later redefined here",
+                            member_name.val.as_str().fg(Color::Blue)
+                        )),
+                )
+                .finish()
+                .print((path, Source::from(src)))?;
+            bail!("duplicate member detected");
+        }
+    }
+
+    const EXPECTED_MEMBERS: [&'static str; 2] = ["min", "max"];
+
+    for found_member_name in unique_members.keys() {
+        if !EXPECTED_MEMBERS.contains(&found_member_name.val.as_str()) {
+            let mut report = Report::build(ReportKind::Error, path, found_member_name.span.start)
+                .with_message(format!(
+                    "unexpected member \"{}\" when expecting a range",
+                    found_member_name.val
+                ))
+                .with_label(
+                    Label::new((path, found_member_name.span.into_range())).with_color(Color::Red),
+                );
+            if let Some(suggestion) = edit_distance::find_best_match_for_name(
+                &EXPECTED_MEMBERS,
+                &found_member_name.val,
+                Some(1),
+            ) {
+                report.set_help(format!(
+                    "did you mean {} instead?",
+                    suggestion.fg(Color::Blue)
+                ));
+            }
+            report.finish().print((path, Source::from(src)))?;
+            bail!("unexpected member when trying to process a range object");
+        }
+    }
+
+    let min_member = unique_members
+        .iter()
+        .find(|(k, _)| k.val == "min")
+        .map(|(_, v)| v)
+        .unwrap();
+    let min = {
+        let Json::Num(n) = &min_member.val else {
+            unexpected_value_kind(path, member_val, "number").print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind {} found in \"min\" member value; expected number",
+                member_val.val.kind_desc()
+            );
+        };
+        match validate(Box::new(n.val), n.span) {
+            ValidationResult::Ok(val) => val,
+            ValidationResult::Err(report) => {
+                report.print((path, Source::from(src)))?;
+                bail!("invalid min value");
+            }
+        }
+    };
+
+    let max_member = unique_members
+        .iter()
+        .find(|(k, _)| k.val == "max")
+        .map(|(_, v)| v)
+        .unwrap();
+    let max = {
+        let Json::Num(n) = &max_member.val else {
+            unexpected_value_kind(path, member_val, "number").print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind {} found in \"max\" member value; expected number",
+                member_val.val.kind_desc()
+            );
+        };
+        match validate(Box::new(n.val), n.span) {
+            ValidationResult::Ok(val) => val,
+            ValidationResult::Err(report) => {
+                report.print((path, Source::from(src)))?;
+                bail!("invalid max value");
+            }
+        }
+    };
+
+    *target = Spanned {
+        span: member_val.span,
+        val: Range {
+            min: Spanned {
+                span: min_member.span,
+                val: min,
+            },
+            max: Spanned {
+                span: max_member.span,
+                val: max,
+            },
+        },
+    };
+
+    Ok(())
+}
+
 fn handle_top_level_members<'d, 'a>(
     diag: &mut Diagnostics<'d>,
     path: &'d String,
@@ -257,15 +704,23 @@ fn handle_top_level_members<'d, 'a>(
     }
 
     for (member_name, member_val) in unique_top_level_members {
-        match member_name.val.as_str() {
-            "Name" => handle_str(diag, path, src, &mut cd.name, &member_val, "Name")?,
+        let found_member_name = member_name.val.as_str();
+        match found_member_name {
+            "Name" => handle_str(
+                diag,
+                path,
+                src,
+                &mut cd.name,
+                &member_val,
+                found_member_name,
+            )?,
             "Description" => handle_str(
                 diag,
                 path,
                 src,
                 &mut cd.description,
                 &member_val,
-                "Description",
+                found_member_name,
             )?,
             "MaxActiveCritters" => handle_single_item_or_array_number(
                 diag,
@@ -274,7 +729,7 @@ fn handle_top_level_members<'d, 'a>(
                 "number",
                 &mut cd.max_active_critters,
                 &member_val,
-                "MaxActiveCritters",
+                found_member_name,
                 mk_finite_nonnegative_f64_to_usize_validator(path),
             )?,
             "MaxActiveSwarmers" => handle_single_item_or_array_number(
@@ -284,7 +739,7 @@ fn handle_top_level_members<'d, 'a>(
                 "number",
                 &mut cd.max_active_swarmers,
                 &member_val,
-                "MaxActiveSwarmers",
+                found_member_name,
                 mk_finite_nonnegative_f64_to_usize_validator(path),
             )?,
             "MaxActiveEnemies" => handle_single_item_or_array_number(
@@ -294,7 +749,7 @@ fn handle_top_level_members<'d, 'a>(
                 "number",
                 &mut cd.max_active_enemies,
                 &member_val,
-                "MaxActiveEnemies",
+                found_member_name,
                 mk_finite_nonnegative_f64_to_usize_validator(path),
             )?,
             "ResupplyCost" => handle_single_item_or_array_number(
@@ -314,7 +769,7 @@ fn handle_top_level_members<'d, 'a>(
                 "number",
                 &mut cd.starting_nitra,
                 &member_val,
-                "StartingNitra",
+                found_member_name,
                 mk_finite_nonnegative_f64_to_usize_validator(path),
             )?,
             "ExtraLargeEnemyDamageResistance" => handle_single_item_or_array_number(
@@ -324,7 +779,7 @@ fn handle_top_level_members<'d, 'a>(
                 "number",
                 &mut cd.extra_large_enemy_damage_resistance,
                 &member_val,
-                "ExtraLargeEnemyDamageResistance",
+                found_member_name,
                 mk_finite_nonnegative_f64_validator(path),
             )?,
             "ExtraLargeEnemyDamageResistanceB" => handle_single_item_or_array_number(
@@ -334,7 +789,7 @@ fn handle_top_level_members<'d, 'a>(
                 "number",
                 &mut cd.extra_large_enemy_damage_resistance_b,
                 &member_val,
-                "ExtraLargeEnemyDamageResistanceB",
+                found_member_name,
                 mk_finite_nonnegative_f64_validator(path),
             )?,
             "ExtraLargeEnemyDamageResistanceC" => handle_single_item_or_array_number(
@@ -342,47 +797,285 @@ fn handle_top_level_members<'d, 'a>(
                 path,
                 src,
                 "number",
-                &mut cd.extra_large_enemy_damage_resistance_b,
+                &mut cd.extra_large_enemy_damage_resistance_c,
                 &member_val,
-                "ExtraLargeEnemyDamageResistanceB",
+                found_member_name,
                 mk_finite_nonnegative_f64_validator(path),
             )?,
-            "ExtraLargeEnemyDamageResistanceD" => todo!(),
-            "EnemyDamageResistance" => todo!(),
-            "SmallEnemyDamageResistance" => todo!(),
-            "EnemyDamageModifier" => todo!(),
-            "EnemyCountModifier" => todo!(),
-            "EncounterDifficulty" => todo!(),
-            "StationaryDifficulty" => todo!(),
-            "EnemyWaveInterval" => todo!(),
-            "EnemyNormalWaveInterval" => todo!(),
-            "EnemyNormalWaveDifficulty" => todo!(),
-            "EnemyDiversity" => todo!(),
-            "StationaryEnemyDiversity" => todo!(),
-            "VeteranNormal" => todo!(),
-            "VeteranLarge" => todo!(),
-            "DisruptiveEnemyPoolCount" => todo!(),
-            "MinPoolSize" => todo!(),
-            "MaxActiveElites" => todo!(),
-            "EnvironmentalDamageModifier" => todo!(),
-            "PointExtractionScalar" => todo!(),
-            "HazardBonus" => todo!(),
-            "FriendlyFireModifier" => todo!(),
-            "WaveStartDelayScale" => todo!(),
-            "SpeedModifier" => todo!(),
-            "AttackCooldownModifier" => todo!(),
-            "ProjectileSpeedModifier" => todo!(),
-            "HealthRegenerationMax" => todo!(),
-            "ReviveHealthRatio" => todo!(),
-            "EliteCooldown" => todo!(),
-            "EnemyDescriptors" => todo!(),
+            "ExtraLargeEnemyDamageResistanceD" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.extra_large_enemy_damage_resistance_d,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "EnemyDamageResistance" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.enemy_damage_resistance,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "SmallEnemyDamageResistance" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.small_enemy_damage_resistance,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "EnemyDamageModifier" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.enemy_damage_modifier,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "EnemyCountModifier" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.enemy_count_modifier,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "EncounterDifficulty" => handle_weighted_range_vec(
+                diag,
+                path,
+                src,
+                &mut cd.encounter_difficulty,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "StationaryDifficulty" => handle_weighted_range_vec(
+                diag,
+                path,
+                src,
+                &mut cd.stationary_difficulty,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "EnemyWaveInterval" => handle_weighted_range_vec(
+                diag,
+                path,
+                src,
+                &mut cd.enemy_wave_interval,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "EnemyNormalWaveInterval" => handle_weighted_range_vec(
+                diag,
+                path,
+                src,
+                &mut cd.enemy_normal_wave_interval,
+                &member_val,
+                "EnemyNormalWaveInterval",
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "EnemyNormalWaveDifficulty" => handle_weighted_range_vec(
+                diag,
+                path,
+                src,
+                &mut cd.enemy_normal_wave_difficulty,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "EnemyDiversity" => handle_weighted_range_vec(
+                diag,
+                path,
+                src,
+                &mut cd.enemy_diversity,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "StationaryEnemyDiversity" => handle_weighted_range_vec(
+                diag,
+                path,
+                src,
+                &mut cd.stationary_enemy_diversity,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "VeteranNormal" => handle_weighted_range_vec(
+                diag,
+                path,
+                src,
+                &mut cd.veteran_normal,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "VeteranLarge" => handle_weighted_range_vec(
+                diag,
+                path,
+                src,
+                &mut cd.veteran_large,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "DisruptiveEnemyPoolCount" => handle_range(
+                diag,
+                path,
+                src,
+                &mut cd.disruptive_enemy_pool_count,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "MinPoolSize" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.min_pool_size,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "MaxActiveElites" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.max_active_elites,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "EnvironmentalDamageModifier" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.environmental_damage_modifier,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "PointExtractionScalar" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.point_extraction_scalar,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "HazardBonus" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.hazard_bonus,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "FriendlyFireModifier" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.friendly_fire_modifier,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "WaveStartDelayScale" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.wave_start_delay_scale,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "SpeedModifier" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.speed_modifier,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "AttackCooldownModifier" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.attack_cooldown_modifier,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "ProjectileSpeedModifier" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.projectile_speed_modifier,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "HealthRegenerationMax" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.health_regeneration_max,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "ReviveHealthRatio" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.revive_health_ratio,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "EliteCooldown" => handle_number(
+                diag,
+                path,
+                src,
+                &mut cd.elite_cooldown,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
             "EnemyPool" => todo!(),
             "CommonEnemies" => todo!(),
             "DisruptiveEnemies" => todo!(),
             "SpecialEnemies" => todo!(),
             "StationaryEnemies" => todo!(),
-            "SeasonalEvents" => todo!(),
+            "EnemyDescriptors" => todo!(),
             "EscortMule" => todo!(),
+            "SeasonalEvents" => todo!(),
             m => {
                 handle_unknown_top_level_member(path, src, &member_name, m)?;
             }

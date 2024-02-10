@@ -19,10 +19,9 @@ impl<T: Default> Default for ArrayOrSingleItem<T> {
 }
 
 #[derive(Debug, PartialEq, Deserialize)]
-#[serde(rename_all = "PascalCase")]
 pub struct Range<T> {
-    pub min: T,
-    pub max: T,
+    pub min: Spanned<T>,
+    pub max: Spanned<T>,
 }
 
 impl<T: Default> Default for Range<T> {
@@ -35,21 +34,19 @@ impl<T: Default> Default for Range<T> {
 }
 
 #[derive(Debug, PartialEq, Deserialize)]
-#[serde(rename_all = "PascalCase")]
 pub struct WeightedRange<T> {
-    pub weight: f64,
-    pub range: Range<T>,
+    pub weight: Spanned<f64>,
+    pub range: Spanned<Range<T>>,
 }
 
 #[derive(Debug, PartialEq, Deserialize)]
-#[serde(rename_all = "PascalCase")]
 pub struct EnemyPool {
     #[serde(default)]
-    pub clear: bool,
+    pub clear: Spanned<bool>,
     #[serde(default)]
-    pub add: Vec<String>,
+    pub add: Spanned<Vec<String>>,
     #[serde(default)]
-    pub remove: Vec<String>,
+    pub remove: Spanned<Vec<String>>,
 }
 
 impl Default for EnemyPool {
@@ -62,29 +59,18 @@ impl Default for EnemyPool {
     }
 }
 
-#[derive(Debug, PartialEq, Deserialize)]
+#[derive(Debug, PartialEq, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct EscortMule {
     /// The damage taken from players.
-    pub friendly_fire_modifier: f64,
+    pub friendly_fire_modifier: Spanned<f64>,
     /// The damage taken from neutral damage sources.
-    pub neutral_damage_modifier: f64,
+    pub neutral_damage_modifier: Spanned<f64>,
     /// The damage taken from big hits.
-    pub big_hit_damage_modifier: f64,
+    pub big_hit_damage_modifier: Spanned<f64>,
     /// The damage threshold for a hit to be considered a "big hit" and get affected by the
     /// `BigHitDamageModifier`.
-    pub big_hit_damage_reduction_threshold: f64,
-}
-
-impl Default for EscortMule {
-    fn default() -> Self {
-        EscortMule {
-            friendly_fire_modifier: 0.1,
-            neutral_damage_modifier: 0.1,
-            big_hit_damage_modifier: 0.5,
-            big_hit_damage_reduction_threshold: 0.0,
-        }
-    }
+    pub big_hit_damage_reduction_threshold: Spanned<f64>,
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize)]
@@ -142,7 +128,6 @@ impl<T: Default> Default for Spanned<T> {
     }
 }
 
-//FIXME: make newtypes for fields that need a default value.
 #[derive(Debug, PartialEq, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct CustomDifficulty {
@@ -198,39 +183,39 @@ pub struct CustomDifficulty {
     /// An array of weighted bins used to calculate the difficulty of encounter enemies when spawned
     /// (enemies spawned inside rooms when approached by the player the first time).
     #[serde(default)]
-    pub encounter_difficulty: Spanned<Vec<WeightedRange<usize>>>,
+    pub encounter_difficulty: Spanned<Vec<Spanned<WeightedRange<usize>>>>,
     /// An array of weighted bins used to calculate the difficulty of stationary enemies (spitball
     /// infectors, brood nexuses, leeches, and breeders).
     #[serde(default)]
-    pub stationary_difficulty: Spanned<Vec<WeightedRange<usize>>>,
+    pub stationary_difficulty: Spanned<Vec<Spanned<WeightedRange<usize>>>>,
     /// An array of weighted bins used to calculate time (in seconds) between timed announced waves
     /// (present in mining, point extraction, and refinery mission types).
     #[serde(default)]
-    pub enemy_wave_interval: Spanned<Vec<WeightedRange<usize>>>,
+    pub enemy_wave_interval: Spanned<Vec<Spanned<WeightedRange<usize>>>>,
     /// An array of weighted bins used to calculate time (in seconds) between timed unannounced
     /// waves (present in mining, refinery, egg, elimination, salvage, escort?, and industrial
     /// sabotage mission types).
     #[serde(default)]
-    pub enemy_normal_wave_interval: Spanned<Vec<WeightedRange<usize>>>,
+    pub enemy_normal_wave_interval: Spanned<Vec<Spanned<WeightedRange<usize>>>>,
     /// An array of weighted bins used to calculate difficulty of normal waves.
     #[serde(default)]
-    pub enemy_normal_wave_difficulty: Spanned<Vec<WeightedRange<usize>>>,
+    pub enemy_normal_wave_difficulty: Spanned<Vec<Spanned<WeightedRange<usize>>>>,
     /// An array of weighted bins used to calculate diversity (number of unique enemy types) spawned
     /// in a wave.
     #[serde(default)]
-    pub enemy_diversity: Spanned<Vec<WeightedRange<usize>>>,
+    pub enemy_diversity: Spanned<Vec<Spanned<WeightedRange<usize>>>>,
     /// An array of weighted bins used to calculate diversity (number of unique enemy types) spawned
     /// in a room.
     #[serde(default)]
-    pub stationary_enemy_diversity: Spanned<Vec<WeightedRange<usize>>>,
+    pub stationary_enemy_diversity: Spanned<Vec<Spanned<WeightedRange<usize>>>>,
     /// An array of weighted bins used to calculate percentage of grunts and mactera to be promoted
     /// to veteran variants.
     #[serde(default)]
-    pub veteran_normal: Spanned<Vec<WeightedRange<f64>>>,
+    pub veteran_normal: Spanned<Vec<Spanned<WeightedRange<f64>>>>,
     /// An array of weighted bins used to calculate percentage of praetorians to be promoted to
     /// oppressors.
     #[serde(default)]
-    pub veteran_large: Spanned<Vec<WeightedRange<f64>>>,
+    pub veteran_large: Spanned<Vec<Spanned<WeightedRange<f64>>>>,
     /// The number of disruptive enemies to fill the enemy pool with at the start of the mission.
     /// Has no effect if changed mid mission.
     #[serde(default)]
@@ -238,7 +223,7 @@ pub struct CustomDifficulty {
     /// The size of the enemy pool. Enemies will be selected and added to the enemy pool until it is
     /// full in the following order: common enemies, disruptive enemies, then special enemies.
     #[serde(default)]
-    pub min_pool_size: Spanned<Range<usize>>,
+    pub min_pool_size: Spanned<usize>,
     /// The maximum number of elite enemies allowed to exist at once.
     #[serde(default)]
     pub max_active_elites: Spanned<usize>,
@@ -283,7 +268,7 @@ pub struct CustomDifficulty {
     /// be used to define new `EnemyDescriptor`s that can be added to pools or modify (or completely
     /// replace) existing `EnemyDescriptor`s.
     #[serde(default)]
-    pub enemy_descriptors: Spanned<BTreeMap<String, EnemyDescriptor>>,
+    pub enemy_descriptors: Spanned<BTreeMap<Spanned<String>, Spanned<EnemyDescriptor>>>,
     /// The enemy pool which is what the game pulls `EnemyDescriptor`s from when attempting to spawn
     /// enemies. This pool is built by pulling enemies from the `CommonEnemies`,
     /// `DisruptiveEnemies`, and `SpecialEnemies` pools upon mission start. It is recommended to not
@@ -306,7 +291,7 @@ pub struct CustomDifficulty {
     /// An array of season events that can spawn. Can be used to disable events such as the
     /// Prospector which can be quite disruptive if encountered on high enemy count missions.
     #[serde(default)]
-    pub seasonal_events: Spanned<Vec<String>>,
+    pub seasonal_events: Spanned<Vec<Spanned<String>>>,
     /// The escort mule damage resistance properties.
     #[serde(default)]
     pub escort_mule: Spanned<EscortMule>,
