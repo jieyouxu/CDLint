@@ -7,6 +7,7 @@ use anyhow::{bail, Context};
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::prelude::*;
 use clap::Parser as ClapParser;
+use custom_difficulty::ArrayOrSingleItem;
 use serde::Deserialize;
 use tracing::*;
 
@@ -15,7 +16,7 @@ use crate::parser::Json;
 
 mod custom_difficulty;
 mod edit_distance;
-mod lints;
+mod late_lints;
 mod logging;
 mod parser;
 
@@ -82,7 +83,7 @@ fn main() -> anyhow::Result<()> {
                     .with_color(Color::Red),
             )
             .finish()
-            .eprint((&path, Source::from(&json_string)))
+            .print((&path, Source::from(&json_string)))
             .unwrap()
     });
 
@@ -111,11 +112,15 @@ fn main() -> anyhow::Result<()> {
     // 2. Late-pass lints: these lints are performed on the built CD struct.
 
     handle_top_level_members(
-        &mut custom_difficulty,
-        &path,
         &mut diagnostics,
+        &path,
+        &json_string,
+        &mut custom_difficulty,
         &top_level_members,
-    );
+    )
+    .context("trying to process top level members")?;
+
+    late_lints::lint_empty_cd_name(&custom_difficulty, &path, &mut diagnostics);
 
     for diagnostic in diagnostics {
         diagnostic.print((&path, Source::from(&json_string)))?;
@@ -124,12 +129,169 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn handle_top_level_members<'a>(
-    _cd: &mut CustomDifficulty,
-    path: &'a String,
-    diagnostics: &mut Vec<Report<'_, (&'a String, std::ops::Range<usize>)>>,
+fn handle_str<'d, 'a>(
+    diag: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &'a str,
+    target: &mut Spanned<String>,
+    member_val: &Spanned<Json>,
+    member_name: &'static str,
+) -> anyhow::Result<()> {
+    *target = if let Json::Str(s) = &member_val.val {
+        s.to_owned()
+    } else {
+        unexpected_value_kind(path, member_val, "string").print((path, Source::from(src)))?;
+        bail!("unexpected JSON kind found in \"{member_name}\" member value");
+    };
+    Ok(())
+}
+
+fn handle_single_item_or_array<T>(
+    diag: &mut Diagnostics<'_>,
+    target: &mut Spanned<Json>,
+    member_val: &Spanned<Json>,
+    handle_elem: impl FnMut(),
+) -> anyhow::Result<()> {
+    todo!()
+}
+
+fn handle_top_level_members<'d, 'a>(
+    diag: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &'a str,
+    cd: &mut CustomDifficulty,
     top_level_members: &BTreeMap<Spanned<String>, Spanned<Json>>,
-) {
+) -> anyhow::Result<()> {
+    for (member_name, member_val) in top_level_members {
+        match member_name.val.as_str() {
+            "Name" => handle_str(diag, path, src, &mut cd.name, member_val, "Name")?,
+            "Description" => handle_str(
+                diag,
+                path,
+                src,
+                &mut cd.description,
+                member_val,
+                "Description",
+            )?,
+            "MaxActiveCritters" => todo!(),
+            "MaxActiveSwarmers" => todo!(),
+            "MaxActiveEnemies" => todo!(),
+            "ResupplyCost" => todo!(),
+            "StartingNitra" => todo!(),
+            "ExtraLargeEnemyDamageResistance" => todo!(),
+            "ExtraLargeEnemyDamageResistanceB" => todo!(),
+            "ExtraLargeEnemyDamageResistanceC" => todo!(),
+            "ExtraLargeEnemyDamageResistanceD" => todo!(),
+            "EnemyDamageResistance" => todo!(),
+            "SmallEnemyDamageResistance" => todo!(),
+            "EnemyDamageModifier" => todo!(),
+            "EnemyCountModifier" => todo!(),
+            "EncounterDifficulty" => todo!(),
+            "StationaryDifficulty" => todo!(),
+            "EnemyWaveInterval" => todo!(),
+            "EnemyNormalWaveInterval" => todo!(),
+            "EnemyNormalWaveDifficulty" => todo!(),
+            "EnemyDiversity" => todo!(),
+            "StationaryEnemyDiversity" => todo!(),
+            "VeteranNormal" => todo!(),
+            "VeteranLarge" => todo!(),
+            "DisruptiveEnemyPoolCount" => todo!(),
+            "MinPoolSize" => todo!(),
+            "MaxActiveElites" => todo!(),
+            "EnvironmentalDamageModifier" => todo!(),
+            "PointExtractionScalar" => todo!(),
+            "HazardBonus" => todo!(),
+            "FriendlyFireModifier" => todo!(),
+            "WaveStartDelayScale" => todo!(),
+            "SpeedModifier" => todo!(),
+            "AttackCooldownModifier" => todo!(),
+            "ProjectileSpeedModifier" => todo!(),
+            "HealthRegenerationMax" => todo!(),
+            "ReviveHealthRatio" => todo!(),
+            "EliteCooldown" => todo!(),
+            "EnemyDescriptors" => todo!(),
+            "EnemyPool" => todo!(),
+            "CommonEnemies" => todo!(),
+            "DisruptiveEnemies" => todo!(),
+            "SpecialEnemies" => todo!(),
+            "StationaryEnemies" => todo!(),
+            "SeasonalEvents" => todo!(),
+            "EscortMule" => todo!(),
+            m => {
+                handle_unknown_top_level_member(path, src, member_name, m)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+type Diagnostics<'a> = Vec<Report<'a, (&'a String, std::ops::Range<usize>)>>;
+
+fn handle_number_or_array<'d>(
+    member_val: &Spanned<Json>,
+    diagnostics: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &str,
+    cd_member: &mut Spanned<ArrayOrSingleItem<usize>>,
+) -> Result<(), anyhow::Error> {
+    match &member_val.val {
+        Json::Array(a) => {
+            let mut arr = Vec::new();
+            for val in &a.val {
+                match &val.val {
+                    Json::Num(n) => {
+                        if (0.0..f64::MAX).contains(&n.val) {
+                            arr.push(n.val as usize);
+                        } else {
+                            diagnostics.push(value_out_of_valid_range(
+                                path,
+                                n.val,
+                                n.span,
+                                0.0..f64::MAX,
+                            ));
+                        }
+                    }
+                    _ => {
+                        unexpected_value_kind(path, member_val, "number")
+                            .print((path, Source::from(src)))?;
+                        bail!("unexpected JSON kind found in \"MaxActiveCritters\" value array");
+                    }
+                }
+            }
+            *cd_member = Spanned {
+                span: member_val.span,
+                val: ArrayOrSingleItem::Array(arr),
+            };
+        }
+        Json::Num(n) => {
+            if (0.0..f64::MAX).contains(&n.val) {
+                *cd_member = Spanned {
+                    span: n.span,
+                    val: ArrayOrSingleItem::SingleItem(n.val as usize),
+                };
+            } else {
+                diagnostics.push(value_out_of_valid_range(path, n.val, n.span, 0.0..f64::MAX));
+            }
+        }
+        _ => {
+            unexpected_value_kind(path, member_val, "number array or single number")
+                .print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind found in \"{}\" member value",
+                "MaxActiveCritters"
+            );
+        }
+    };
+    Ok(())
+}
+
+fn handle_unknown_top_level_member(
+    path: &String,
+    src: &str,
+    member_name: &Spanned<String>,
+    received_member_name: &str,
+) -> Result<(), anyhow::Error> {
     const TOP_LEVEL_MEMBER_NAMES: [&'static str; 46] = [
         "Name",
         "Description",
@@ -179,72 +341,54 @@ fn handle_top_level_members<'a>(
         "EscortMule",
     ];
 
-    for (member_name, _member_val) in top_level_members {
-        match member_name.val.as_str() {
-            "Name" => todo!(),
-            "Description" => todo!(),
-            "MaxActiveCritters" => todo!(),
-            "MaxActiveSwarmers" => todo!(),
-            "MaxActiveEnemies" => todo!(),
-            "ResupplyCost" => todo!(),
-            "StartingNitra" => todo!(),
-            "ExtraLargeEnemyDamageResistance" => todo!(),
-            "ExtraLargeEnemyDamageResistanceB" => todo!(),
-            "ExtraLargeEnemyDamageResistanceC" => todo!(),
-            "ExtraLargeEnemyDamageResistanceD" => todo!(),
-            "EnemyDamageResistance" => todo!(),
-            "SmallEnemyDamageResistance" => todo!(),
-            "EnemyDamageModifier" => todo!(),
-            "EnemyCountModifier" => todo!(),
-            "EncounterDifficulty" => todo!(),
-            "StationaryDifficulty" => todo!(),
-            "EnemyWaveInterval" => todo!(),
-            "EnemyNormalWaveInterval" => todo!(),
-            "EnemyNormalWaveDifficulty" => todo!(),
-            "EnemyDiversity" => todo!(),
-            "StationaryEnemyDiversity" => todo!(),
-            "VeteranNormal" => todo!(),
-            "VeteranLarge" => todo!(),
-            "DisruptiveEnemyPoolCount" => todo!(),
-            "MinPoolSize" => todo!(),
-            "MaxActiveElites" => todo!(),
-            "EnvironmentalDamageModifier" => todo!(),
-            "PointExtractionScalar" => todo!(),
-            "HazardBonus" => todo!(),
-            "FriendlyFireModifier" => todo!(),
-            "WaveStartDelayScale" => todo!(),
-            "SpeedModifier" => todo!(),
-            "AttackCooldownModifier" => todo!(),
-            "ProjectileSpeedModifier" => todo!(),
-            "HealthRegenerationMax" => todo!(),
-            "ReviveHealthRatio" => todo!(),
-            "EliteCooldown" => todo!(),
-            "EnemyDescriptors" => todo!(),
-            "EnemyPool" => todo!(),
-            "CommonEnemies" => todo!(),
-            "DisruptiveEnemies" => todo!(),
-            "SpecialEnemies" => todo!(),
-            "StationaryEnemies" => todo!(),
-            "SeasonalEvents" => todo!(),
-            "EscortMule" => todo!(),
-            m => {
-                let mut report = Report::build(ReportKind::Error, path, member_name.span.start)
-                    .with_message(format!("unexpected member: \"{}\"", m))
-                    .with_label(
-                        Label::new((path, member_name.span.into_range())).with_color(Color::Red),
-                    );
-
-                if let Some(suggestion) =
-                    edit_distance::find_best_match_for_name(&TOP_LEVEL_MEMBER_NAMES, m, Some(3))
-                {
-                    report.set_help(format!(
-                        "did you mean {} instead?",
-                        suggestion.fg(Color::Blue)
-                    ));
-                }
-
-                diagnostics.push(report.finish());
-            }
-        }
+    let mut report = Report::build(ReportKind::Error, path, member_name.span.start)
+        .with_message(format!("unexpected member: \"{}\"", received_member_name))
+        .with_label(Label::new((path, member_name.span.into_range())).with_color(Color::Red));
+    if let Some(suggestion) = edit_distance::find_best_match_for_name(
+        &TOP_LEVEL_MEMBER_NAMES,
+        received_member_name,
+        Some(3),
+    ) {
+        report.set_help(format!(
+            "did you mean {} instead?",
+            suggestion.fg(Color::Blue)
+        ));
     }
+    report.finish().print((path, Source::from(src)))?;
+    bail!("unexpected top-level member");
+}
+
+fn unexpected_value_kind<'a, 'b>(
+    path: &'a String,
+    member_val: &'b Spanned<Json>,
+    expected_kind: &'static str,
+) -> Report<'a, (&'a String, std::ops::Range<usize>)> {
+    Report::<(&'a String, std::ops::Range<usize>)>::build(
+        ReportKind::Error,
+        path,
+        member_val.span.start,
+    )
+    .with_message(format!(
+        "unexpected member value JSON kind: expected {} but found {}",
+        expected_kind.fg(Color::Blue),
+        member_val.val.kind_desc().fg(Color::Blue)
+    ))
+    .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
+    .finish()
+}
+
+fn value_out_of_valid_range<'a, 'b>(
+    path: &'a String,
+    val: f64,
+    span: SimpleSpan<usize>,
+    valid_range: std::ops::Range<f64>,
+) -> Report<'a, (&'a String, std::ops::Range<usize>)> {
+    Report::<(&'a String, std::ops::Range<usize>)>::build(ReportKind::Error, path, span.start)
+        .with_message(format!(
+            "value {} outside of valid range {}",
+            val.fg(Color::Blue),
+            format!("[{}, {:+e})", valid_range.start, valid_range.end).fg(Color::Blue)
+        ))
+        .with_label(Label::new((path, span.into_range())).with_color(Color::Red))
+        .finish()
 }

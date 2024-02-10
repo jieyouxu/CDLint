@@ -17,6 +17,20 @@ pub enum Json {
     Object(Spanned<BTreeMap<Spanned<String>, Spanned<Json>>>),
 }
 
+impl Json {
+    pub fn kind_desc(&self) -> &'static str {
+        match self {
+            Json::Invalid(_) => "invalid",
+            Json::Null(_) => "null",
+            Json::Bool(_) => "bool",
+            Json::Str(_) => "string",
+            Json::Num(_) => "number",
+            Json::Array(_) => "array",
+            Json::Object(_) => "object",
+        }
+    }
+}
+
 /// Taken from: <https://github.com/zesterer/chumsky/blob/main/examples/json.rs>.
 pub fn parser<'a>() -> impl Parser<'a, &'a str, Spanned<Json>, extra::Err<Rich<'a, char>>> {
     recursive(|value| {
