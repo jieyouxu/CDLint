@@ -1,5 +1,6 @@
 //! Taken verbatim from
 //! <https://doc.rust-lang.org/nightly/nightly-rustc/src/rustc_span/edit_distance.rs.html#1-288>.
+#![allow(dead_code)]
 
 use std::cmp;
 use std::mem;

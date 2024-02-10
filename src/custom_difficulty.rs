@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use chumsky::span::SimpleSpan;
 use serde::Deserialize;
 
-use crate::Spanned;
+use crate::spanned::Spanned;
 
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(untagged)]

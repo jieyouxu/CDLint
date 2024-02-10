@@ -6,7 +6,6 @@ use crate::Spanned;
 
 #[derive(Clone, Debug)]
 pub enum Json {
-    Invalid(Spanned<()>),
     Null(Spanned<()>),
     Bool(Spanned<bool>),
     Str(Spanned<String>),
@@ -18,7 +17,6 @@ pub enum Json {
 impl Json {
     pub fn kind_desc(&self) -> &'static str {
         match self {
-            Json::Invalid(_) => "invalid",
             Json::Null(_) => "null",
             Json::Bool(_) => "bool",
             Json::Str(_) => "string",
