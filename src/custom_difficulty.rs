@@ -74,49 +74,49 @@ pub struct EscortMule {
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize)]
-pub struct PawnStats(pub BTreeMap<String, f64>);
+pub struct PawnStats(pub BTreeMap<Spanned<String>, Spanned<f64>>);
 
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct EnemyDescriptor {
     /// The EnemyDescriptor to copy values from. Required if defining a new EnemyDescriptor.
     #[serde(default)]
-    pub base: String,
+    pub base: Spanned<String>,
     /// The maximum distance enemies can spawn from the center of spawn point in centimeters.
     #[serde(default)]
-    pub spawn_spread: f64,
+    pub spawn_spread: Spanned<f64>,
     #[serde(default)]
-    pub ideal_spawn_size: usize,
+    pub ideal_spawn_size: Spanned<usize>,
     /// Whether this descriptor can spawn in constant pressure waves (preset in point extraction and
     /// during the repair phase on refinery).
     #[serde(default)]
-    pub can_be_used_for_constant_pressure: bool,
+    pub can_be_used_for_constant_pressure: Spanned<bool>,
     /// Whether this descriptor can spawn in encounters.
     #[serde(default)]
-    pub can_be_used_in_encounters: bool,
+    pub can_be_used_in_encounters: Spanned<bool>,
     /// The difficulty cost to spawn each individual enemy. The exact interaction with
     /// SpawnAmountModifier is currently unknown.
     #[serde(default)]
-    pub difficulty_rating: f64,
+    pub difficulty_rating: Spanned<f64>,
     #[serde(default)]
-    pub min_spawn_count: usize,
+    pub min_spawn_count: Spanned<usize>,
     #[serde(default)]
-    pub max_spawn_count: usize,
+    pub max_spawn_count: Spanned<usize>,
     #[serde(default)]
-    pub rarity: usize,
+    pub rarity: Spanned<f64>,
     #[serde(default)]
-    pub spawn_amount_modifier: usize,
+    pub spawn_amount_modifier: Spanned<f64>,
     /// Whether the enemy should be turned into an elite.
     #[serde(default)]
-    pub elite: bool,
+    pub elite: Spanned<bool>,
     /// How large the enemy is.
     #[serde(default)]
-    pub scale: f64,
+    pub scale: Spanned<f64>,
     /// How fast the enemy moves relative to everything else.
     #[serde(default)]
-    pub time_dilation: f64,
+    pub time_dilation: Spanned<f64>,
     #[serde(default)]
-    pub pawn_stats: PawnStats,
+    pub pawn_stats: Spanned<PawnStats>,
 }
 
 impl<T: Default> Default for Spanned<T> {

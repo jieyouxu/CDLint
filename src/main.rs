@@ -1,20 +1,19 @@
 #![feature(let_chains)]
-#![feature(map_try_insert)]
 
 use std::any::Any;
-use std::collections::btree_map::OccupiedError;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use anyhow::{bail, Context};
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
+use chumsky::container::Container;
 use chumsky::prelude::*;
 use clap::Parser as ClapParser;
-use custom_difficulty::{ArrayOrSingleItem, EnemyPool, EscortMule, WeightedRange};
+use custom_difficulty::{ArrayOrSingleItem, EnemyDescriptor, EnemyPool, EscortMule, WeightedRange};
 use serde::Deserialize;
 use tracing::*;
 
-use crate::custom_difficulty::{CustomDifficulty, Range};
+use crate::custom_difficulty::{CustomDifficulty, PawnStats, Range};
 use crate::parser::Json;
 
 mod custom_difficulty;
@@ -34,7 +33,7 @@ fn dummy_sp() -> SimpleSpan {
     SimpleSpan::new(0, 0)
 }
 
-#[derive(Debug, Eq, Deserialize, Clone)]
+#[derive(Debug, Eq, Deserialize, Clone, Hash)]
 pub struct Spanned<T> {
     #[serde(skip_serializing)]
     pub span: SimpleSpan<usize>,
@@ -254,22 +253,32 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
         };
 
         let mut unique_members = BTreeMap::new();
+        let mut unique_member_names = BTreeSet::new();
         for (member_name, member_val) in &obj.val {
-            if let Err(OccupiedError { entry, .. }) =
-                unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
-            {
+            if !unique_member_names.insert(member_name.val.to_owned()) {
+                unique_members.insert(member_name.to_owned(), member_val.to_owned());
+
                 Report::build(ReportKind::Error, path, member_name.span.start)
                     .with_message(format!(
                         "member \"{}\" defined multiple times",
                         member_name.val.as_str().fg(Color::Blue)
                     ))
                     .with_label(
-                        Label::new((path, entry.key().span.into_range()))
-                            .with_message(format!(
-                                "member \"{}\" first defined here",
-                                member_name.val.as_str().fg(Color::Blue)
-                            ))
-                            .with_color(Color::Red),
+                        Label::new((
+                            path,
+                            unique_members
+                                .iter()
+                                .find(|(k, _)| k.val == member_name.val)
+                                .unwrap()
+                                .0
+                                .span
+                                .into_range(),
+                        ))
+                        .with_message(format!(
+                            "member \"{}\" first defined here",
+                            member_name.val.as_str().fg(Color::Blue)
+                        ))
+                        .with_color(Color::Red),
                     )
                     .with_label(
                         Label::new((path, member_name.span.into_range()))
@@ -355,22 +364,33 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
             };
 
             let mut unique_members = BTreeMap::new();
+            let mut unique_member_names = BTreeSet::new();
+
             for (member_name, member_val) in &obj.val {
-                if let Err(OccupiedError { entry, .. }) =
-                    unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
-                {
+                if !unique_member_names.insert(member_name.val.to_owned()) {
+                    unique_members.insert(member_name.to_owned(), member_val.to_owned());
+
                     Report::build(ReportKind::Error, path, member_name.span.start)
                         .with_message(format!(
                             "member \"{}\" defined multiple times",
                             member_name.val.as_str().fg(Color::Blue)
                         ))
                         .with_label(
-                            Label::new((path, entry.key().span.into_range()))
-                                .with_message(format!(
-                                    "member \"{}\" first defined here",
-                                    member_name.val.as_str().fg(Color::Blue)
-                                ))
-                                .with_color(Color::Red),
+                            Label::new((
+                                path,
+                                unique_members
+                                    .iter()
+                                    .find(|(k, _)| k.val == member_name.val)
+                                    .unwrap()
+                                    .0
+                                    .span
+                                    .into_range(),
+                            ))
+                            .with_message(format!(
+                                "member \"{}\" first defined here",
+                                member_name.val.as_str().fg(Color::Blue)
+                            ))
+                            .with_color(Color::Red),
                         )
                         .with_label(
                             Label::new((path, member_name.span.into_range()))
@@ -547,22 +567,32 @@ fn handle_range<'d, 'a, 'n, T>(
     };
 
     let mut unique_members = BTreeMap::new();
+    let mut unique_member_names = BTreeSet::new();
     for (member_name, member_val) in &obj.val {
-        if let Err(OccupiedError { entry, .. }) =
-            unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
-        {
+        if !unique_member_names.insert(member_name.val.to_owned()) {
+            unique_members.insert(member_name.to_owned(), member_val.to_owned());
+
             Report::build(ReportKind::Error, path, member_name.span.start)
                 .with_message(format!(
                     "member \"{}\" defined multiple times",
                     member_name.val.as_str().fg(Color::Blue)
                 ))
                 .with_label(
-                    Label::new((path, entry.key().span.into_range()))
-                        .with_message(format!(
-                            "member \"{}\" first defined here",
-                            member_name.val.as_str().fg(Color::Blue)
-                        ))
-                        .with_color(Color::Red),
+                    Label::new((
+                        path,
+                        unique_members
+                            .iter()
+                            .find(|(k, _)| k.val == member_name.val)
+                            .unwrap()
+                            .0
+                            .span
+                            .into_range(),
+                    ))
+                    .with_message(format!(
+                        "member \"{}\" first defined here",
+                        member_name.val.as_str().fg(Color::Blue)
+                    ))
+                    .with_color(Color::Red),
                 )
                 .with_label(
                     Label::new((path, member_name.span.into_range()))
@@ -684,25 +714,34 @@ fn handle_enemy_pool<'d, 'a, 'n>(
     };
 
     let mut unique_members = BTreeMap::new();
+    let mut unique_member_names = BTreeSet::new();
 
     const EXPECTED_MEMBERS: [&'static str; 3] = ["clear", "add", "remove"];
 
     for (member_name, member_val) in &obj.val {
-        if let Err(OccupiedError { entry, .. }) =
-            unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
-        {
+        if !unique_member_names.insert(member_name.val.to_owned()) {
+            unique_members.insert(member_name.to_owned(), member_val.to_owned());
             Report::build(ReportKind::Error, path, member_name.span.start)
                 .with_message(format!(
                     "member \"{}\" defined multiple times",
                     member_name.val.as_str().fg(Color::Blue)
                 ))
                 .with_label(
-                    Label::new((path, entry.key().span.into_range()))
-                        .with_message(format!(
-                            "member \"{}\" first defined here",
-                            member_name.val.as_str().fg(Color::Blue)
-                        ))
-                        .with_color(Color::Red),
+                    Label::new((
+                        path,
+                        unique_members
+                            .iter()
+                            .find(|(k, _)| k.val == member_name.val)
+                            .unwrap()
+                            .0
+                            .span
+                            .into_range(),
+                    ))
+                    .with_message(format!(
+                        "member \"{}\" first defined here",
+                        member_name.val.as_str().fg(Color::Blue)
+                    ))
+                    .with_color(Color::Red),
                 )
                 .with_label(
                     Label::new((path, member_name.span.into_range()))
@@ -837,13 +876,707 @@ fn handle_enemy_pool<'d, 'a, 'n>(
     Ok(())
 }
 
+fn handle_enemy_descriptors<'d, 'a, 'n>(
+    _diag: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &'a str,
+    target: &mut Spanned<BTreeMap<Spanned<String>, Spanned<EnemyDescriptor>>>,
+    member_val: &Spanned<Json>,
+    _member_name: &'n str,
+    f64_validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, f64>,
+    usize_validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, usize>,
+) -> anyhow::Result<()> {
+    let Json::Object(obj) = &member_val.val else {
+        Report::build(ReportKind::Error, path, member_val.span.start)
+            .with_message("expected an enemy descriptors object")
+            .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
+            .finish()
+            .print((path, Source::from(src)))?;
+        bail!("expected a enemy descriptors object");
+    };
+
+    let mut descriptors = BTreeMap::new();
+
+    let mut unique_members = BTreeMap::new();
+    let mut unique_member_names = BTreeSet::new();
+    for (name, ed) in &obj.val {
+        if !unique_member_names.insert(name.val.to_owned()) {
+            unique_members.insert(name.to_owned(), ed.to_owned());
+
+            Report::build(ReportKind::Error, path, name.span.start)
+                .with_message(format!(
+                    "member \"{}\" defined multiple times",
+                    name.val.as_str().fg(Color::Blue)
+                ))
+                .with_label(
+                    Label::new((
+                        path,
+                        unique_members
+                            .iter()
+                            .find(|(k, _)| k.val == name.val)
+                            .unwrap()
+                            .0
+                            .span
+                            .into_range(),
+                    ))
+                    .with_message(format!(
+                        "member \"{}\" first defined here",
+                        name.val.as_str().fg(Color::Blue)
+                    ))
+                    .with_color(Color::Red),
+                )
+                .with_label(
+                    Label::new((path, name.span.into_range()))
+                        .with_color(Color::Red)
+                        .with_message(format!(
+                            "member \"{}\" later redefined here",
+                            name.val.as_str().fg(Color::Blue)
+                        )),
+                )
+                .finish()
+                .print((path, Source::from(src)))?;
+
+            bail!("duplicate member detected");
+        }
+    }
+
+    for (name, ed) in &unique_members {
+        let Json::Object(ed_obj) = &ed.val else {
+            Report::build(ReportKind::Error, path, member_val.span.start)
+                .with_message("expected an enemy descriptors object")
+                .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
+                .finish()
+                .print((path, Source::from(src)))?;
+            bail!("expected a enemy descriptor object");
+        };
+
+        const EXPECTED_MEMBERS: [&'static str; 14] = [
+            "Base",
+            "SpawnSpread",
+            "IdealSpawnSize",
+            "CanBeUsedForConstantPressure",
+            "CanBeUsedInEncounters",
+            "DifficultyRating",
+            "MinSpawnCount",
+            "MaxSpawnCount",
+            "Rarity",
+            "SpawnAmountModifier",
+            "Elite",
+            "Scale",
+            "TimeDilation",
+            "PawnStats",
+        ];
+
+        let mut unique_members = BTreeMap::new();
+        let mut unique_member_names = BTreeSet::new();
+
+        for (ed_member_name, ed_member_value) in &ed_obj.val {
+            if !unique_member_names.insert(ed_member_name.val.to_owned()) {
+                unique_members.insert(ed_member_name.to_owned(), ed_member_value.to_owned());
+
+                Report::build(ReportKind::Error, path, name.span.start)
+                    .with_message(format!(
+                        "member \"{}\" defined multiple times",
+                        name.val.as_str().fg(Color::Blue)
+                    ))
+                    .with_label(
+                        Label::new((
+                            path,
+                            unique_members
+                                .iter()
+                                .find(|(k, _)| k.val == name.val)
+                                .unwrap()
+                                .0
+                                .span
+                                .into_range(),
+                        ))
+                        .with_message(format!(
+                            "member \"{}\" first defined here",
+                            name.val.as_str().fg(Color::Blue)
+                        ))
+                        .with_color(Color::Red),
+                    )
+                    .with_label(
+                        Label::new((path, name.span.into_range()))
+                            .with_color(Color::Red)
+                            .with_message(format!(
+                                "member \"{}\" later redefined here",
+                                name.val.as_str().fg(Color::Blue)
+                            )),
+                    )
+                    .finish()
+                    .print((path, Source::from(src)))?;
+
+                bail!("duplicate member detected");
+            }
+
+            if !EXPECTED_MEMBERS.contains(&ed_member_name.val.as_str()) {
+                let mut report = Report::build(ReportKind::Error, path, ed_member_name.span.start)
+                    .with_message(format!("unexpected member: \"{}\"", ed_member_name.val))
+                    .with_label(
+                        Label::new((path, ed_member_name.span.into_range())).with_color(Color::Red),
+                    );
+                if let Some(suggestion) = edit_distance::find_best_match_for_name(
+                    &EXPECTED_MEMBERS,
+                    &ed_member_name.val,
+                    Some(3),
+                ) {
+                    report.set_help(format!(
+                        "did you mean {} instead?",
+                        suggestion.fg(Color::Blue)
+                    ));
+                }
+                report.finish().print((path, Source::from(src)))?;
+                bail!("unexpected member");
+            }
+        }
+
+        let base_member = unique_members.iter().find(|(k, _)| k.val == "Base");
+        let base = if let Some((_, base_member_val)) = base_member {
+            let Json::Str(n) = &base_member_val.val else {
+                unexpected_value_kind(path, member_val, "string")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "unexpected JSON kind {} found in \"Base\" member value; expected string",
+                    base_member_val.val.kind_desc()
+                );
+            };
+            n.to_owned()
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: String::new(),
+            }
+        };
+
+        let spawn_spread_member = unique_members.iter().find(|(k, _)| k.val == "SpawnSpread");
+        let spawn_spread = if let Some((_, spawn_spread_member_val)) = spawn_spread_member {
+            let Json::Num(n) = &spawn_spread_member_val.val else {
+                unexpected_value_kind(path, spawn_spread_member_val, "number")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                "unexpected JSON kind {} found in \"SpawnSpread\" member value; expected number",
+                spawn_spread_member_val.val.kind_desc()
+            );
+            };
+            let val = match f64_validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => val,
+                ValidationResult::Err(report) => {
+                    report.print((path, Source::from(src)))?;
+                    bail!("invalid SpawnSpread value");
+                }
+            };
+            Spanned {
+                span: spawn_spread_member_val.span,
+                val,
+            }
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: 0.0,
+            }
+        };
+
+        let ideal_spawn_size_member = unique_members
+            .iter()
+            .find(|(k, _)| k.val == "IdealSpawnSize");
+        let ideal_spawn_size =
+            if let Some((_, ideal_spawn_size_member_val)) = ideal_spawn_size_member {
+                let Json::Num(n) = &ideal_spawn_size_member_val.val else {
+                    unexpected_value_kind(path, ideal_spawn_size_member_val, "number")
+                        .print((path, Source::from(src)))?;
+                    bail!(
+                "unexpected JSON kind {} found in \"IdealSpawnSize\" member value; expected number",
+                ideal_spawn_size_member_val.val.kind_desc()
+            );
+                };
+                let val = match usize_validate(Box::new(n.val), n.span) {
+                    ValidationResult::Ok(val) => val,
+                    ValidationResult::Err(report) => {
+                        report.print((path, Source::from(src)))?;
+                        bail!("invalid IdealSpawnSize value");
+                    }
+                };
+                Spanned {
+                    span: ideal_spawn_size_member_val.span,
+                    val,
+                }
+            } else {
+                Spanned {
+                    span: dummy_sp(),
+                    val: 0,
+                }
+            };
+
+        let can_be_used_for_constant_pressure_member = unique_members
+            .iter()
+            .find(|(k, _)| k.val == "CanBeUsedForConstantPressure");
+        let can_be_used_for_constant_pressure = if let Some((
+            _,
+            can_be_used_for_constant_pressure_member_val,
+        )) = can_be_used_for_constant_pressure_member
+        {
+            let Json::Bool(b) = &can_be_used_for_constant_pressure_member_val.val else {
+                unexpected_value_kind(path, can_be_used_for_constant_pressure_member_val, "bool")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                "unexpected JSON kind {} found in \"CanBeUsedForConstantPressure\" member value; expected bool",
+                can_be_used_for_constant_pressure_member_val.val.kind_desc()
+            );
+            };
+            b.to_owned()
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: false,
+            }
+        };
+
+        let can_be_used_in_encounters_member = unique_members
+            .iter()
+            .find(|(k, _)| k.val == "CanBeUsedInEncounters");
+        let can_be_used_in_encounters = if let Some((_, can_be_used_in_encounters_member_val)) =
+            can_be_used_in_encounters_member
+        {
+            let Json::Bool(b) = &can_be_used_in_encounters_member_val.val else {
+                unexpected_value_kind(path, can_be_used_in_encounters_member_val, "bool")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                "unexpected JSON kind {} found in \"CanBeUsedInEncounters\" member value; expected bool",
+                can_be_used_in_encounters_member_val.val.kind_desc()
+                );
+            };
+            b.to_owned()
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: false,
+            }
+        };
+
+        let difficulty_rating_member = unique_members
+            .iter()
+            .find(|(k, _)| k.val == "DifficultyRating");
+        let difficulty_rating = if let Some((_, difficulty_rating_member_val)) =
+            difficulty_rating_member
+        {
+            let Json::Num(n) = &difficulty_rating_member_val.val else {
+                unexpected_value_kind(path, difficulty_rating_member_val, "number")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                "unexpected JSON kind {} found in \"DifficultyRating\" member value; expected number",
+                difficulty_rating_member_val.val.kind_desc()
+            );
+            };
+            let val = match f64_validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => val,
+                ValidationResult::Err(report) => {
+                    report.print((path, Source::from(src)))?;
+                    bail!("invalid DifficultyRating value");
+                }
+            };
+            Spanned {
+                span: difficulty_rating_member_val.span,
+                val,
+            }
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: 0.0,
+            }
+        };
+
+        let min_spawn_count_member = unique_members
+            .iter()
+            .find(|(k, _)| k.val == "MinSpawnCount");
+        let min_spawn_count = if let Some((_, min_spawn_count_member_val)) = min_spawn_count_member
+        {
+            let Json::Num(n) = &min_spawn_count_member_val.val else {
+                unexpected_value_kind(path, min_spawn_count_member_val, "number")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                "unexpected JSON kind {} found in \"MinSpawnCount\" member value; expected number",
+                min_spawn_count_member_val.val.kind_desc()
+            );
+            };
+            let val = match usize_validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => val,
+                ValidationResult::Err(report) => {
+                    report.print((path, Source::from(src)))?;
+                    bail!("invalid MinSpawnCount value");
+                }
+            };
+            Spanned {
+                span: min_spawn_count_member_val.span,
+                val,
+            }
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: 0,
+            }
+        };
+
+        let max_spawn_count_member = unique_members
+            .iter()
+            .find(|(k, _)| k.val == "MaxSpawnCount");
+        let max_spawn_count = if let Some((_, max_spawn_count_member_val)) = max_spawn_count_member
+        {
+            let Json::Num(n) = &max_spawn_count_member_val.val else {
+                unexpected_value_kind(path, max_spawn_count_member_val, "number")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                "unexpected JSON kind {} found in \"MaxSpawnCount\" member value; expected number",
+                max_spawn_count_member_val.val.kind_desc()
+            );
+            };
+            let val = match usize_validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => val,
+                ValidationResult::Err(report) => {
+                    report.print((path, Source::from(src)))?;
+                    bail!("invalid MaxSpawnCount value");
+                }
+            };
+            Spanned {
+                span: max_spawn_count_member_val.span,
+                val,
+            }
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: 0,
+            }
+        };
+
+        let rarity_member = unique_members.iter().find(|(k, _)| k.val == "Rarity");
+        let rarity = if let Some((_, rarity_member_val)) = rarity_member {
+            let Json::Num(n) = &rarity_member_val.val else {
+                unexpected_value_kind(path, rarity_member_val, "number")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "unexpected JSON kind {} found in \"Rarity\" member value; expected number",
+                    rarity_member_val.val.kind_desc()
+                );
+            };
+            let val = match f64_validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => val,
+                ValidationResult::Err(report) => {
+                    report.print((path, Source::from(src)))?;
+                    bail!("invalid Rarity value");
+                }
+            };
+            Spanned {
+                span: rarity_member_val.span,
+                val,
+            }
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: 0.0,
+            }
+        };
+
+        let spawn_amount_modifier_member = unique_members
+            .iter()
+            .find(|(k, _)| k.val == "SpawnAmountModifier");
+        let spawn_amount_modifier = if let Some((_, spawn_amount_modifier_member_val)) =
+            spawn_amount_modifier_member
+        {
+            let Json::Num(n) = &spawn_amount_modifier_member_val.val else {
+                unexpected_value_kind(path, spawn_amount_modifier_member_val, "number")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "unexpected JSON kind {} found in \"SpawnAmountModifier\" member value; expected number",
+                    spawn_amount_modifier_member_val.val.kind_desc()
+                );
+            };
+            let val = match f64_validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => val,
+                ValidationResult::Err(report) => {
+                    report.print((path, Source::from(src)))?;
+                    bail!("invalid SpawnAmountModifier value");
+                }
+            };
+            Spanned {
+                span: spawn_amount_modifier_member_val.span,
+                val,
+            }
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: 0.0,
+            }
+        };
+
+        let elite_member = unique_members.iter().find(|(k, _)| k.val == "Elite");
+        let elite = if let Some((_, elite_member_val)) = elite_member {
+            let Json::Bool(b) = &elite_member_val.val else {
+                unexpected_value_kind(path, elite_member_val, "bool")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "unexpected JSON kind {} found in \"Elite\" member value; expected bool",
+                    elite_member_val.val.kind_desc()
+                );
+            };
+            b.to_owned()
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: false,
+            }
+        };
+
+        let scale_member = unique_members.iter().find(|(k, _)| k.val == "Scale");
+        let scale = if let Some((_, scale_member_val)) = scale_member {
+            let Json::Num(n) = &scale_member_val.val else {
+                unexpected_value_kind(path, scale_member_val, "number")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "unexpected JSON kind {} found in \"Scale\" member value; expected number",
+                    scale_member_val.val.kind_desc()
+                );
+            };
+            let val = match f64_validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => val,
+                ValidationResult::Err(report) => {
+                    report.print((path, Source::from(src)))?;
+                    bail!("invalid Scale value");
+                }
+            };
+            Spanned {
+                span: scale_member_val.span,
+                val,
+            }
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: 0.0,
+            }
+        };
+
+        let time_dilation_member = unique_members.iter().find(|(k, _)| k.val == "TimeDilation");
+        let time_dilation = if let Some((_, time_dilation_member_val)) = time_dilation_member {
+            let Json::Num(n) = &time_dilation_member_val.val else {
+                unexpected_value_kind(path, time_dilation_member_val, "number")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "unexpected JSON kind {} found in \"TimeDilation\" member value; expected number",
+                    time_dilation_member_val.val.kind_desc()
+                );
+            };
+            let val = match f64_validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => val,
+                ValidationResult::Err(report) => {
+                    report.print((path, Source::from(src)))?;
+                    bail!("invalid TimeDilation value");
+                }
+            };
+            Spanned {
+                span: time_dilation_member_val.span,
+                val,
+            }
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: 0.0,
+            }
+        };
+
+        let pawn_stats_member = unique_members.iter().find(|(k, _)| k.val == "PawnStats");
+        let pawn_stats = if let Some((_, pawn_stats_member_val)) = pawn_stats_member {
+            let Json::Object(pawn_stats_map) = &pawn_stats_member_val.val else {
+                unexpected_value_kind(path, pawn_stats_member_val, "object")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "unexpected JSON kind {} found in \"PawnStats\" member value; expected object",
+                    pawn_stats_member_val.val.kind_desc()
+                );
+            };
+
+            let mut unique_members = BTreeMap::new();
+            let mut unique_member_names = BTreeSet::new();
+            for (member_name, member_val) in &pawn_stats_map.val {
+                if !unique_member_names.insert(member_name.val.to_owned()) {
+                    unique_members.insert(member_name.to_owned(), member_val.to_owned());
+
+                    Report::build(ReportKind::Error, path, member_name.span.start)
+                        .with_message(format!(
+                            "member \"{}\" defined multiple times",
+                            member_name.val.as_str().fg(Color::Blue)
+                        ))
+                        .with_label(
+                            Label::new((
+                                path,
+                                unique_members
+                                    .iter()
+                                    .find(|(k, _)| k.val == member_name.val)
+                                    .unwrap()
+                                    .0
+                                    .span
+                                    .into_range(),
+                            ))
+                            .with_message(format!(
+                                "member \"{}\" first defined here",
+                                member_name.val.as_str().fg(Color::Blue)
+                            ))
+                            .with_color(Color::Red),
+                        )
+                        .with_label(
+                            Label::new((path, member_name.span.into_range()))
+                                .with_color(Color::Red)
+                                .with_message(format!(
+                                    "member \"{}\" later redefined here",
+                                    member_name.val.as_str().fg(Color::Blue)
+                                )),
+                        )
+                        .finish()
+                        .print((path, Source::from(src)))?;
+                    bail!("duplicate member detected");
+                }
+            }
+
+            const EXPECTED_MEMBERS: [&'static str; 48] = [
+                "PST_BarrelKicking",
+                "PST_CarriableThrowing",
+                "PST_CarryingCapacity",
+                "PST_CarryingSpeedModifier",
+                "PST_CaveLeechSense",
+                "PST_ColdResistance",
+                "PST_CorrosiveResistance",
+                "PST_DamageBonus",
+                "PST_DamageFromPlayers",
+                "PST_DamageResistance",
+                "PST_DepositSpeed",
+                "PST_DirtMiningStrength",
+                "PST_ElectricResistance",
+                "PST_EventExplosionResistance",
+                "PST_ExplodeOnDeath",
+                "PST_ExplosionResistance",
+                "PST_FallingResistance",
+                "PST_FireResistance",
+                "PST_FlareThrowStrength",
+                "PST_FriendlyFire",
+                "PST_GoldMining",
+                "PST_HoverBootsDuration",
+                "PST_InternalDamageResistance",
+                "PST_KineticResistance",
+                "PST_MaxHealth",
+                "PST_MaxShield",
+                "PST_MeleeDamage",
+                "PST_MorkiteMining",
+                "PST_MovementSpeed",
+                "PST_MovementSpeedEnvironmentalPenalty",
+                "PST_MovementSpeedEnvironmentalPenaltyReduction",
+                "PST_MovementSpeedPenalty",
+                "PST_MovementSpeedPenaltyReduction",
+                "PST_PhysicalResistance",
+                "PST_PoisonResistance",
+                "PST_PowerAttackCooldownRate",
+                "PST_RadiationResistance",
+                "PST_RedSugarHeal",
+                "PST_ResourceMiningStrength",
+                "PST_ResupplyHealing",
+                "PST_ResupplySpeed",
+                "PST_ReviveSpeed",
+                "PST_RockMiningStrength",
+                "PST_ShieldRegeneratoinRate",
+                "PST_SlipperyFloor",
+                "PST_SprintSpeed",
+                "PST_Ziplline_DownBoost",
+                "PST_ZipllineSpee",
+            ];
+
+            for found_member_name in unique_members.keys() {
+                if !EXPECTED_MEMBERS.contains(&found_member_name.val.as_str()) {
+                    let mut report =
+                        Report::build(ReportKind::Error, path, found_member_name.span.start)
+                            .with_message(format!(
+                                "unexpected member \"{}\" when expecting a weighted range",
+                                found_member_name.val
+                            ))
+                            .with_label(
+                                Label::new((path, found_member_name.span.into_range()))
+                                    .with_color(Color::Red),
+                            );
+                    if let Some(suggestion) = edit_distance::find_best_match_for_name(
+                        &EXPECTED_MEMBERS,
+                        &found_member_name.val,
+                        Some(3),
+                    ) {
+                        report.set_help(format!(
+                            "did you mean {} instead?",
+                            suggestion.fg(Color::Blue)
+                        ));
+                    }
+                    report.finish().print((path, Source::from(src)))?;
+                    bail!("unexpected member when trying to process a weighted range object");
+                }
+            }
+
+            let mut pawn_stats = BTreeMap::new();
+
+            for (name, val) in &unique_members {
+                let Json::Num(pawn_stat_val) = &val.val else {
+                    unexpected_value_kind(path, val, "number").print((path, Source::from(src)))?;
+                    bail!(
+                        "unexpected JSON kind {} found in \"PawnStats\" member value; expected number",
+                        val.val.kind_desc()
+                    );
+                };
+
+                pawn_stats.insert(name.to_owned(), pawn_stat_val.to_owned());
+            }
+
+            Spanned {
+                span: member_val.span,
+                val: PawnStats(pawn_stats),
+            }
+        } else {
+            Spanned {
+                span: dummy_sp(),
+                val: PawnStats::default(),
+            }
+        };
+
+        descriptors.insert(
+            name.to_owned(),
+            Spanned {
+                span: name.span,
+                val: EnemyDescriptor {
+                    base,
+                    spawn_spread,
+                    ideal_spawn_size,
+                    can_be_used_for_constant_pressure,
+                    can_be_used_in_encounters,
+                    difficulty_rating,
+                    min_spawn_count,
+                    max_spawn_count,
+                    rarity,
+                    spawn_amount_modifier,
+                    elite,
+                    scale,
+                    time_dilation,
+                    pawn_stats,
+                },
+            },
+        );
+    }
+
+    *target = Spanned {
+        span: member_val.span,
+        val: descriptors,
+    };
+
+    Ok(())
+}
+
 fn handle_escort_mule<'d, 'a, 'n>(
     _diag: &mut Diagnostics<'d>,
     path: &'d String,
     src: &'a str,
     target: &mut Spanned<EscortMule>,
     member_val: &Spanned<Json>,
-    member_name: &'n str,
+    _member_name: &'n str,
     validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, f64>,
 ) -> anyhow::Result<()> {
     let Json::Object(obj) = &member_val.val else {
@@ -855,8 +1588,6 @@ fn handle_escort_mule<'d, 'a, 'n>(
         bail!("expected a escort mule object");
     };
 
-    let mut unique_members = BTreeMap::new();
-
     const EXPECTED_MEMBERS: [&'static str; 4] = [
         "FriendlyFireModifier",
         "NeutralDamageModifier",
@@ -864,22 +1595,34 @@ fn handle_escort_mule<'d, 'a, 'n>(
         "BigHitDamageReductionThreshold",
     ];
 
+    let mut unique_member_names = BTreeSet::new();
+    let mut unique_members = BTreeMap::new();
+
     for (member_name, member_val) in &obj.val {
-        if let Err(OccupiedError { entry, .. }) =
-            unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
-        {
+        if !unique_member_names.insert(member_name.val.to_owned()) {
+            unique_members.insert(member_name.to_owned(), member_val.to_owned());
+
             Report::build(ReportKind::Error, path, member_name.span.start)
                 .with_message(format!(
                     "member \"{}\" defined multiple times",
                     member_name.val.as_str().fg(Color::Blue)
                 ))
                 .with_label(
-                    Label::new((path, entry.key().span.into_range()))
-                        .with_message(format!(
-                            "member \"{}\" first defined here",
-                            member_name.val.as_str().fg(Color::Blue)
-                        ))
-                        .with_color(Color::Red),
+                    Label::new((
+                        path,
+                        unique_members
+                            .iter()
+                            .find(|(k, _)| k.val == member_name.val)
+                            .unwrap()
+                            .0
+                            .span
+                            .into_range(),
+                    ))
+                    .with_message(format!(
+                        "member \"{}\" first defined here",
+                        member_name.val.as_str().fg(Color::Blue)
+                    ))
+                    .with_color(Color::Red),
                 )
                 .with_label(
                     Label::new((path, member_name.span.into_range()))
@@ -1057,22 +1800,32 @@ fn handle_top_level_members<'d, 'a>(
     top_level_members: &Vec<(Spanned<String>, Spanned<Json>)>,
 ) -> anyhow::Result<()> {
     let mut unique_top_level_members = BTreeMap::new();
+    let mut unique_top_level_member_names = BTreeSet::new();
     for (member_name, member_val) in top_level_members {
-        if let Err(OccupiedError { entry, .. }) =
-            unique_top_level_members.try_insert(member_name.to_owned(), member_val.to_owned())
-        {
+        if !unique_top_level_member_names.insert(member_name.val.to_owned()) {
+            unique_top_level_members.insert(member_name.to_owned(), member_val.to_owned());
+
             Report::build(ReportKind::Error, path, member_name.span.start)
                 .with_message(format!(
                     "member \"{}\" defined multiple times",
                     member_name.val.as_str().fg(Color::Blue)
                 ))
                 .with_label(
-                    Label::new((path, entry.key().span.into_range()))
-                        .with_message(format!(
-                            "member \"{}\" first defined here",
-                            member_name.val.as_str().fg(Color::Blue)
-                        ))
-                        .with_color(Color::Red),
+                    Label::new((
+                        path,
+                        unique_top_level_members
+                            .iter()
+                            .find(|(k, _)| k.val == member_name.val)
+                            .unwrap()
+                            .0
+                            .span
+                            .into_range(),
+                    ))
+                    .with_message(format!(
+                        "member \"{}\" first defined here",
+                        member_name.val.as_str().fg(Color::Blue)
+                    ))
+                    .with_color(Color::Red),
                 )
                 .with_label(
                     Label::new((path, member_name.span.into_range()))
@@ -1494,7 +2247,16 @@ fn handle_top_level_members<'d, 'a>(
                 &member_val,
                 found_member_name,
             )?,
-            "EnemyDescriptors" => todo!(),
+            "EnemyDescriptors" => handle_enemy_descriptors(
+                diag,
+                path,
+                src,
+                &mut cd.enemy_descriptors,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
             "EscortMule" => handle_escort_mule(
                 diag,
                 path,
