@@ -37,7 +37,7 @@ impl<T: Default> Default for Range<T> {
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct WeightedRange<T> {
-    pub weight: f32,
+    pub weight: f64,
     pub range: Range<T>,
 }
 
@@ -66,14 +66,14 @@ impl Default for EnemyPool {
 #[serde(rename_all = "PascalCase")]
 pub struct EscortMule {
     /// The damage taken from players.
-    pub friendly_fire_modifier: f32,
+    pub friendly_fire_modifier: f64,
     /// The damage taken from neutral damage sources.
-    pub neutral_damage_modifier: f32,
+    pub neutral_damage_modifier: f64,
     /// The damage taken from big hits.
-    pub big_hit_damage_modifier: f32,
+    pub big_hit_damage_modifier: f64,
     /// The damage threshold for a hit to be considered a "big hit" and get affected by the
     /// `BigHitDamageModifier`.
-    pub big_hit_damage_reduction_threshold: f32,
+    pub big_hit_damage_reduction_threshold: f64,
 }
 
 impl Default for EscortMule {
@@ -88,7 +88,7 @@ impl Default for EscortMule {
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize)]
-pub struct PawnStats(pub BTreeMap<String, f32>);
+pub struct PawnStats(pub BTreeMap<String, f64>);
 
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -98,7 +98,7 @@ pub struct EnemyDescriptor {
     pub base: String,
     /// The maximum distance enemies can spawn from the center of spawn point in centimeters.
     #[serde(default)]
-    pub spawn_spread: f32,
+    pub spawn_spread: f64,
     #[serde(default)]
     pub ideal_spawn_size: usize,
     /// Whether this descriptor can spawn in constant pressure waves (preset in point extraction and
@@ -111,7 +111,7 @@ pub struct EnemyDescriptor {
     /// The difficulty cost to spawn each individual enemy. The exact interaction with
     /// SpawnAmountModifier is currently unknown.
     #[serde(default)]
-    pub difficulty_rating: f32,
+    pub difficulty_rating: f64,
     #[serde(default)]
     pub min_spawn_count: usize,
     #[serde(default)]
@@ -125,10 +125,10 @@ pub struct EnemyDescriptor {
     pub elite: bool,
     /// How large the enemy is.
     #[serde(default)]
-    pub scale: f32,
+    pub scale: f64,
     /// How fast the enemy moves relative to everything else.
     #[serde(default)]
-    pub time_dilation: f32,
+    pub time_dilation: f64,
     #[serde(default)]
     pub pawn_stats: PawnStats,
 }
@@ -164,7 +164,7 @@ pub struct CustomDifficulty {
     /// The amount of nitra required to call a resupply pod. This can be lowered to relieve ammo
     /// pressure on more demanding difficulties.
     #[serde(default)]
-    pub resupply_cost: Spanned<ArrayOrSingleItem<f32>>,
+    pub resupply_cost: Spanned<ArrayOrSingleItem<f64>>,
     /// The amount of nitra initially in the team depository. This can be used to counter bad RNG at
     /// the start of missions that would otherwise making getting the first resupply quite
     /// difficult.
@@ -172,29 +172,29 @@ pub struct CustomDifficulty {
     pub starting_nitra: Spanned<ArrayOrSingleItem<usize>>,
     /// The damage resistance for ExtraLarge enemies for the corresponding player count.
     #[serde(default)]
-    pub extra_large_enemy_damage_resistance: Spanned<ArrayOrSingleItem<f32>>,
+    pub extra_large_enemy_damage_resistance: Spanned<ArrayOrSingleItem<f64>>,
     /// The damage resistance for ExtraLargeB enemies for the corresponding player count.
     #[serde(default)]
-    pub extra_large_enemy_damage_resistance_b: Spanned<ArrayOrSingleItem<f32>>,
+    pub extra_large_enemy_damage_resistance_b: Spanned<ArrayOrSingleItem<f64>>,
     /// The damage resistance for ExtraLargeC enemies for the corresponding player count.
     #[serde(default)]
-    pub extra_large_enemy_damage_resistance_c: Spanned<ArrayOrSingleItem<f32>>,
+    pub extra_large_enemy_damage_resistance_c: Spanned<ArrayOrSingleItem<f64>>,
     /// The damage resistance for ExtraLargeD enemies for the corresponding player count.
     #[serde(default)]
-    pub extra_large_enemy_damage_resistance_d: Spanned<ArrayOrSingleItem<f32>>,
+    pub extra_large_enemy_damage_resistance_d: Spanned<ArrayOrSingleItem<f64>>,
     /// The damage resistance for enemies for the corresponding player count.
     #[serde(default)]
-    pub enemy_damage_resistance: Spanned<ArrayOrSingleItem<f32>>,
+    pub enemy_damage_resistance: Spanned<ArrayOrSingleItem<f64>>,
     /// The damage resistance for small enemies for the corresponding player count.
     #[serde(default)]
-    pub small_enemy_damage_resistance: Spanned<ArrayOrSingleItem<f32>>,
+    pub small_enemy_damage_resistance: Spanned<ArrayOrSingleItem<f64>>,
     /// The amount of damage done to players by enemies for the corresponding player count.
     #[serde(default)]
-    pub enemy_damage_modifier: Spanned<ArrayOrSingleItem<f32>>,
+    pub enemy_damage_modifier: Spanned<ArrayOrSingleItem<f64>>,
     /// The number of enemies spawned for nearly all wave and encounter types for the corresponding
     /// player count.
     #[serde(default)]
-    pub enemy_count_modifier: Spanned<ArrayOrSingleItem<f32>>,
+    pub enemy_count_modifier: Spanned<ArrayOrSingleItem<f64>>,
     /// An array of weighted bins used to calculate the difficulty of encounter enemies when spawned
     /// (enemies spawned inside rooms when approached by the player the first time).
     #[serde(default)]
@@ -226,11 +226,11 @@ pub struct CustomDifficulty {
     /// An array of weighted bins used to calculate percentage of grunts and mactera to be promoted
     /// to veteran variants.
     #[serde(default)]
-    pub veteran_normal: Spanned<Vec<WeightedRange<f32>>>,
+    pub veteran_normal: Spanned<Vec<WeightedRange<f64>>>,
     /// An array of weighted bins used to calculate percentage of praetorians to be promoted to
     /// oppressors.
     #[serde(default)]
-    pub veteran_large: Spanned<Vec<WeightedRange<f32>>>,
+    pub veteran_large: Spanned<Vec<WeightedRange<f64>>>,
     /// The number of disruptive enemies to fill the enemy pool with at the start of the mission.
     /// Has no effect if changed mid mission.
     #[serde(default)]
@@ -245,36 +245,36 @@ pub struct CustomDifficulty {
     /// The amount of damage environmental sources of damage do to players. Does not seem to have
     /// any effect.
     #[serde(default)]
-    pub environmental_damage_modifier: Spanned<f32>,
+    pub environmental_damage_modifier: Spanned<f64>,
     /// How quickly the constant pressure waves on point extraction scale as time goes on. Does not
     /// seem to do anything when increased higher than 1.
     #[serde(default)]
-    pub point_extraction_scalar: Spanned<f32>,
+    pub point_extraction_scalar: Spanned<f64>,
     /// The hazard bonus reward for the difficulty.
     #[serde(default)]
-    pub hazard_bonus: Spanned<f32>,
+    pub hazard_bonus: Spanned<f64>,
     /// The amount of damage done to other players.
     #[serde(default)]
-    pub friendly_fire_modifier: Spanned<f32>,
+    pub friendly_fire_modifier: Spanned<f64>,
     /// How long before the first wave starts in units of wave interval.
     #[serde(default)]
-    pub wave_start_delay_scale: Spanned<f32>,
+    pub wave_start_delay_scale: Spanned<f64>,
     /// The movement speed of most enemies.
     #[serde(default)]
-    pub speed_modifier: Spanned<f32>,
+    pub speed_modifier: Spanned<f64>,
     /// The cooldown between enemy attacks.
     #[serde(default)]
-    pub attack_cooldown_modifier: Spanned<f32>,
+    pub attack_cooldown_modifier: Spanned<f64>,
     /// The speed of non-arcing enemy projectiles.
     #[serde(default)]
-    pub projectile_speed_modifier: Spanned<f32>,
+    pub projectile_speed_modifier: Spanned<f64>,
     /// The percentage of full health to regenerate to over time.
     #[serde(default)]
-    pub health_regeneration_max: Spanned<f32>,
+    pub health_regeneration_max: Spanned<f64>,
     /// The percentage of health to get back upon being revived by another player (does not apply to
     /// a revive from bosco).
     #[serde(default)]
-    pub revive_health_ratio: Spanned<f32>,
+    pub revive_health_ratio: Spanned<f64>,
     /// The cooldown in seconds between spawning elite enemies.
     #[serde(default)]
     pub elite_cooldown: Spanned<usize>,

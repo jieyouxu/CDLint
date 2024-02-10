@@ -1,7 +1,5 @@
 //! Parser for a Custom Difficulty JSON.
 
-use std::collections::BTreeMap;
-
 use chumsky::prelude::*;
 
 use crate::Spanned;
@@ -14,7 +12,7 @@ pub enum Json {
     Str(Spanned<String>),
     Num(Spanned<f64>),
     Array(Spanned<Vec<Spanned<Json>>>),
-    Object(Spanned<BTreeMap<Spanned<String>, Spanned<Json>>>),
+    Object(Spanned<Vec<(Spanned<String>, Spanned<Json>)>>),
 }
 
 impl Json {

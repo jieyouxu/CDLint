@@ -1,5 +1,8 @@
 #![feature(let_chains)]
+#![feature(map_try_insert)]
 
+use std::any::Any;
+use std::collections::btree_map::OccupiedError;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -51,6 +54,14 @@ impl<T: Ord> Ord for Spanned<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.val.cmp(&other.val)
     }
+}
+
+type DiagnosticReport<'a> = Report<'a, (&'a String, std::ops::Range<usize>)>;
+type Diagnostics<'a> = Vec<DiagnosticReport<'a>>;
+
+pub enum ValidationResult<'d, T> {
+    Ok(T),
+    Err(DiagnosticReport<'d>),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -130,7 +141,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn handle_str<'d, 'a>(
-    diag: &mut Diagnostics<'d>,
+    _diag: &mut Diagnostics<'d>,
     path: &'d String,
     src: &'a str,
     target: &mut Spanned<String>,
@@ -146,13 +157,63 @@ fn handle_str<'d, 'a>(
     Ok(())
 }
 
-fn handle_single_item_or_array<T>(
-    diag: &mut Diagnostics<'_>,
-    target: &mut Spanned<Json>,
+fn handle_single_item_or_array_number<'d, 'a, T: 'static>(
+    diag: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &'a str,
+    expected_ty: &'static str,
+    target: &mut Spanned<ArrayOrSingleItem<T>>,
     member_val: &Spanned<Json>,
-    handle_elem: impl FnMut(),
+    member_name: &'static str,
+    validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, T>,
 ) -> anyhow::Result<()> {
-    todo!()
+    use std::any::TypeId;
+
+    match &member_val.val {
+        Json::Array(a) if TypeId::of::<T>() == TypeId::of::<Vec<Json>>() => {
+            let mut arr = Vec::new();
+            for elem in &a.val {
+                match validate(Box::new(elem.to_owned()), elem.span) {
+                    ValidationResult::Ok(val) => {
+                        arr.push(val);
+                    }
+                    ValidationResult::Err(report) => diag.push(report),
+                }
+            }
+            *target = Spanned {
+                span: member_val.span,
+                val: ArrayOrSingleItem::Array(arr),
+            };
+        }
+        Json::Num(n) if TypeId::of::<T>() == TypeId::of::<f64>() => {
+            match validate(Box::new(n.val), n.span) {
+                ValidationResult::Ok(val) => {
+                    *target = Spanned {
+                        span: member_val.span,
+                        val: ArrayOrSingleItem::SingleItem(val),
+                    }
+                }
+                ValidationResult::Err(report) => diag.push(report),
+            }
+        }
+        Json::Str(s) if TypeId::of::<T>() == TypeId::of::<String>() => {
+            match validate(Box::new(s.val.to_owned()), s.span) {
+                ValidationResult::Ok(val) => {
+                    *target = Spanned {
+                        span: member_val.span,
+                        val: ArrayOrSingleItem::SingleItem(val),
+                    }
+                }
+                ValidationResult::Err(report) => diag.push(report),
+            }
+        }
+        _ => {
+            unexpected_value_kind(path, member_val, "{expected_ty} or array of {expected_ty}")
+                .print((path, Source::from(src)))?;
+            bail!("unexpected JSON kind {} found in \"{member_name}\" member value; expected {expected_ty} or array of {expected_ty}", member_val.val.kind_desc());
+        }
+    }
+    Ok(())
 }
 
 fn handle_top_level_members<'d, 'a>(
@@ -160,27 +221,132 @@ fn handle_top_level_members<'d, 'a>(
     path: &'d String,
     src: &'a str,
     cd: &mut CustomDifficulty,
-    top_level_members: &BTreeMap<Spanned<String>, Spanned<Json>>,
+    top_level_members: &Vec<(Spanned<String>, Spanned<Json>)>,
 ) -> anyhow::Result<()> {
+    let mut unique_top_level_members = BTreeMap::new();
     for (member_name, member_val) in top_level_members {
+        if let Err(OccupiedError { entry, .. }) =
+            unique_top_level_members.try_insert(member_name.to_owned(), member_val.to_owned())
+        {
+            Report::build(ReportKind::Error, path, member_name.span.start)
+                .with_message(format!(
+                    "member \"{}\" defined multiple times",
+                    member_name.val.as_str().fg(Color::Blue)
+                ))
+                .with_label(
+                    Label::new((path, entry.key().span.into_range()))
+                        .with_message(format!(
+                            "member \"{}\" first defined here",
+                            member_name.val.as_str().fg(Color::Blue)
+                        ))
+                        .with_color(Color::Red),
+                )
+                .with_label(
+                    Label::new((path, member_name.span.into_range()))
+                        .with_color(Color::Red)
+                        .with_message(format!(
+                            "member \"{}\" later redefined here",
+                            member_name.val.as_str().fg(Color::Blue)
+                        )),
+                )
+                .finish()
+                .print((path, Source::from(src)))?;
+
+            bail!("duplicate top-level member detected");
+        }
+    }
+
+    for (member_name, member_val) in unique_top_level_members {
         match member_name.val.as_str() {
-            "Name" => handle_str(diag, path, src, &mut cd.name, member_val, "Name")?,
+            "Name" => handle_str(diag, path, src, &mut cd.name, &member_val, "Name")?,
             "Description" => handle_str(
                 diag,
                 path,
                 src,
                 &mut cd.description,
-                member_val,
+                &member_val,
                 "Description",
             )?,
-            "MaxActiveCritters" => todo!(),
-            "MaxActiveSwarmers" => todo!(),
-            "MaxActiveEnemies" => todo!(),
-            "ResupplyCost" => todo!(),
-            "StartingNitra" => todo!(),
-            "ExtraLargeEnemyDamageResistance" => todo!(),
-            "ExtraLargeEnemyDamageResistanceB" => todo!(),
-            "ExtraLargeEnemyDamageResistanceC" => todo!(),
+            "MaxActiveCritters" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.max_active_critters,
+                &member_val,
+                "MaxActiveCritters",
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "MaxActiveSwarmers" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.max_active_swarmers,
+                &member_val,
+                "MaxActiveSwarmers",
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "MaxActiveEnemies" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.max_active_enemies,
+                &member_val,
+                "MaxActiveEnemies",
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "ResupplyCost" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.resupply_cost,
+                &member_val,
+                "ResupplyCost",
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "StartingNitra" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.starting_nitra,
+                &member_val,
+                "StartingNitra",
+                mk_finite_nonnegative_f64_to_usize_validator(path),
+            )?,
+            "ExtraLargeEnemyDamageResistance" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.extra_large_enemy_damage_resistance,
+                &member_val,
+                "ExtraLargeEnemyDamageResistance",
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "ExtraLargeEnemyDamageResistanceB" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.extra_large_enemy_damage_resistance_b,
+                &member_val,
+                "ExtraLargeEnemyDamageResistanceB",
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
+            "ExtraLargeEnemyDamageResistanceC" => handle_single_item_or_array_number(
+                diag,
+                path,
+                src,
+                "number",
+                &mut cd.extra_large_enemy_damage_resistance_b,
+                &member_val,
+                "ExtraLargeEnemyDamageResistanceB",
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
             "ExtraLargeEnemyDamageResistanceD" => todo!(),
             "EnemyDamageResistance" => todo!(),
             "SmallEnemyDamageResistance" => todo!(),
@@ -218,7 +384,7 @@ fn handle_top_level_members<'d, 'a>(
             "SeasonalEvents" => todo!(),
             "EscortMule" => todo!(),
             m => {
-                handle_unknown_top_level_member(path, src, member_name, m)?;
+                handle_unknown_top_level_member(path, src, &member_name, m)?;
             }
         }
     }
@@ -226,64 +392,44 @@ fn handle_top_level_members<'d, 'a>(
     Ok(())
 }
 
-type Diagnostics<'a> = Vec<Report<'a, (&'a String, std::ops::Range<usize>)>>;
+fn mk_finite_nonnegative_f64_to_usize_validator<'a>(
+    path: &'a String,
+) -> impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'a, usize> {
+    |val, span| {
+        let val = val.downcast_ref::<f64>().unwrap();
+        if !val.is_sign_negative() && val.is_finite() {
+            ValidationResult::Ok(*val as u64 as usize)
+        } else {
+            ValidationResult::Err(mk_non_negative_and_finite_f64_report(path, span, *val))
+        }
+    }
+}
 
-fn handle_number_or_array<'d>(
-    member_val: &Spanned<Json>,
-    diagnostics: &mut Diagnostics<'d>,
-    path: &'d String,
-    src: &str,
-    cd_member: &mut Spanned<ArrayOrSingleItem<usize>>,
-) -> Result<(), anyhow::Error> {
-    match &member_val.val {
-        Json::Array(a) => {
-            let mut arr = Vec::new();
-            for val in &a.val {
-                match &val.val {
-                    Json::Num(n) => {
-                        if (0.0..f64::MAX).contains(&n.val) {
-                            arr.push(n.val as usize);
-                        } else {
-                            diagnostics.push(value_out_of_valid_range(
-                                path,
-                                n.val,
-                                n.span,
-                                0.0..f64::MAX,
-                            ));
-                        }
-                    }
-                    _ => {
-                        unexpected_value_kind(path, member_val, "number")
-                            .print((path, Source::from(src)))?;
-                        bail!("unexpected JSON kind found in \"MaxActiveCritters\" value array");
-                    }
-                }
-            }
-            *cd_member = Spanned {
-                span: member_val.span,
-                val: ArrayOrSingleItem::Array(arr),
-            };
+fn mk_finite_nonnegative_f64_validator<'a>(
+    path: &'a String,
+) -> impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'a, f64> {
+    |val, span| {
+        let val = val.downcast_ref::<f64>().unwrap();
+        if !val.is_sign_negative() && val.is_finite() {
+            ValidationResult::Ok(*val)
+        } else {
+            ValidationResult::Err(mk_non_negative_and_finite_f64_report(path, span, *val))
         }
-        Json::Num(n) => {
-            if (0.0..f64::MAX).contains(&n.val) {
-                *cd_member = Spanned {
-                    span: n.span,
-                    val: ArrayOrSingleItem::SingleItem(n.val as usize),
-                };
-            } else {
-                diagnostics.push(value_out_of_valid_range(path, n.val, n.span, 0.0..f64::MAX));
-            }
-        }
-        _ => {
-            unexpected_value_kind(path, member_val, "number array or single number")
-                .print((path, Source::from(src)))?;
-            bail!(
-                "unexpected JSON kind found in \"{}\" member value",
-                "MaxActiveCritters"
-            );
-        }
-    };
-    Ok(())
+    }
+}
+
+fn mk_non_negative_and_finite_f64_report(
+    path: &String,
+    span: SimpleSpan,
+    val: f64,
+) -> DiagnosticReport<'_> {
+    Report::build(ReportKind::Error, path, span.start)
+        .with_message(format!(
+            "value {} must be non-negative and finite",
+            val.fg(Color::Blue)
+        ))
+        .with_label(Label::new((path, span.into_range())).with_color(Color::Red))
+        .finish()
 }
 
 fn handle_unknown_top_level_member(
@@ -375,20 +521,4 @@ fn unexpected_value_kind<'a, 'b>(
     ))
     .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
     .finish()
-}
-
-fn value_out_of_valid_range<'a, 'b>(
-    path: &'a String,
-    val: f64,
-    span: SimpleSpan<usize>,
-    valid_range: std::ops::Range<f64>,
-) -> Report<'a, (&'a String, std::ops::Range<usize>)> {
-    Report::<(&'a String, std::ops::Range<usize>)>::build(ReportKind::Error, path, span.start)
-        .with_message(format!(
-            "value {} outside of valid range {}",
-            val.fg(Color::Blue),
-            format!("[{}, {:+e})", valid_range.start, valid_range.end).fg(Color::Blue)
-        ))
-        .with_label(Label::new((path, span.into_range())).with_color(Color::Red))
-        .finish()
 }
