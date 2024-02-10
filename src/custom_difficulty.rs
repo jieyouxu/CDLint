@@ -44,9 +44,9 @@ pub struct EnemyPool {
     #[serde(default)]
     pub clear: Spanned<bool>,
     #[serde(default)]
-    pub add: Spanned<Vec<String>>,
+    pub add: Spanned<Vec<Spanned<String>>>,
     #[serde(default)]
-    pub remove: Spanned<Vec<String>>,
+    pub remove: Spanned<Vec<Spanned<String>>>,
 }
 
 impl Default for EnemyPool {

@@ -10,7 +10,7 @@ use anyhow::{bail, Context};
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::prelude::*;
 use clap::Parser as ClapParser;
-use custom_difficulty::{ArrayOrSingleItem, WeightedRange};
+use custom_difficulty::{ArrayOrSingleItem, EnemyPool, EscortMule, WeightedRange};
 use serde::Deserialize;
 use tracing::*;
 
@@ -30,8 +30,11 @@ struct Args {
     input: PathBuf,
 }
 
-#[derive(Debug, Eq, Deserialize, Clone)]
+fn dummy_sp() -> SimpleSpan {
+    SimpleSpan::new(0, 0)
+}
 
+#[derive(Debug, Eq, Deserialize, Clone)]
 pub struct Spanned<T> {
     #[serde(skip_serializing)]
     pub span: SimpleSpan<usize>,
@@ -663,6 +666,389 @@ fn handle_range<'d, 'a, 'n, T>(
     Ok(())
 }
 
+fn handle_enemy_pool<'d, 'a, 'n>(
+    _diag: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &'a str,
+    target: &mut Spanned<EnemyPool>,
+    member_val: &Spanned<Json>,
+    member_name: &'n str,
+) -> anyhow::Result<()> {
+    let Json::Object(obj) = &member_val.val else {
+        Report::build(ReportKind::Error, path, member_val.span.start)
+            .with_message("expected an enemy pool object")
+            .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
+            .finish()
+            .print((path, Source::from(src)))?;
+        bail!("expected a enemy pool object");
+    };
+
+    let mut unique_members = BTreeMap::new();
+
+    const EXPECTED_MEMBERS: [&'static str; 3] = ["clear", "add", "remove"];
+
+    for (member_name, member_val) in &obj.val {
+        if let Err(OccupiedError { entry, .. }) =
+            unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
+        {
+            Report::build(ReportKind::Error, path, member_name.span.start)
+                .with_message(format!(
+                    "member \"{}\" defined multiple times",
+                    member_name.val.as_str().fg(Color::Blue)
+                ))
+                .with_label(
+                    Label::new((path, entry.key().span.into_range()))
+                        .with_message(format!(
+                            "member \"{}\" first defined here",
+                            member_name.val.as_str().fg(Color::Blue)
+                        ))
+                        .with_color(Color::Red),
+                )
+                .with_label(
+                    Label::new((path, member_name.span.into_range()))
+                        .with_color(Color::Red)
+                        .with_message(format!(
+                            "member \"{}\" later redefined here",
+                            member_name.val.as_str().fg(Color::Blue)
+                        )),
+                )
+                .finish()
+                .print((path, Source::from(src)))?;
+
+            bail!("duplicate member detected");
+        }
+
+        if !EXPECTED_MEMBERS.contains(&member_name.val.as_str()) {
+            let mut report = Report::build(ReportKind::Error, path, member_name.span.start)
+                .with_message(format!("unexpected member: \"{}\"", member_name.val))
+                .with_label(
+                    Label::new((path, member_name.span.into_range())).with_color(Color::Red),
+                );
+            if let Some(suggestion) = edit_distance::find_best_match_for_name(
+                &EXPECTED_MEMBERS,
+                &member_name.val,
+                Some(3),
+            ) {
+                report.set_help(format!(
+                    "did you mean {} instead?",
+                    suggestion.fg(Color::Blue)
+                ));
+            }
+            report.finish().print((path, Source::from(src)))?;
+            bail!("unexpected member");
+        }
+    }
+
+    let clear_member = unique_members.iter().find(|(k, _)| k.val == "clear");
+    let clear = if let Some((_, clear_member_val)) = clear_member {
+        let Json::Bool(b) = &clear_member_val.val else {
+            unexpected_value_kind(path, member_val, "bool").print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind {} found in \"clear\" member value; expected bool",
+                member_val.val.kind_desc()
+            );
+        };
+
+        b.to_owned()
+    } else {
+        Spanned {
+            span: dummy_sp(),
+            val: false,
+        }
+    };
+
+    let add_member = unique_members.iter().find(|(k, _)| k.val == "add");
+    let add = if let Some((_, add_member_val)) = add_member {
+        let Json::Array(a) = &add_member_val.val else {
+            unexpected_value_kind(path, member_val, "array").print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind {} found in \"add\" member value; expected array of strings",
+                member_val.val.kind_desc()
+            );
+        };
+
+        let mut descriptors = Vec::new();
+
+        for elem in &a.val {
+            let Json::Str(s) = &elem.val else {
+                unexpected_value_kind(path, member_val, "string")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "found JSON kind {}, expected a string",
+                    member_val.val.kind_desc()
+                );
+            };
+
+            descriptors.push(s.to_owned());
+        }
+
+        Spanned {
+            span: add_member_val.span,
+            val: descriptors,
+        }
+    } else {
+        Spanned {
+            span: dummy_sp(),
+            val: Vec::new(),
+        }
+    };
+
+    let remove_member = unique_members.iter().find(|(k, _)| k.val == "remove");
+    let remove = if let Some((_, remove_member_val)) = remove_member {
+        let Json::Array(a) = &remove_member_val.val else {
+            unexpected_value_kind(path, member_val, "array").print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind {} found in \"remove\" member value; expected array of strings",
+                member_val.val.kind_desc()
+            );
+        };
+
+        let mut pool = Vec::new();
+
+        for elem in &a.val {
+            let Json::Str(s) = &elem.val else {
+                unexpected_value_kind(path, member_val, "string")
+                    .print((path, Source::from(src)))?;
+                bail!(
+                    "found JSON kind {}, expected a string",
+                    member_val.val.kind_desc()
+                );
+            };
+
+            pool.push(s.to_owned());
+        }
+
+        Spanned {
+            span: remove_member_val.span,
+            val: pool,
+        }
+    } else {
+        Spanned {
+            span: dummy_sp(),
+            val: Vec::new(),
+        }
+    };
+
+    *target = Spanned {
+        span: member_val.span,
+        val: EnemyPool { clear, add, remove },
+    };
+
+    Ok(())
+}
+
+fn handle_escort_mule<'d, 'a, 'n>(
+    _diag: &mut Diagnostics<'d>,
+    path: &'d String,
+    src: &'a str,
+    target: &mut Spanned<EscortMule>,
+    member_val: &Spanned<Json>,
+    member_name: &'n str,
+    validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, f64>,
+) -> anyhow::Result<()> {
+    let Json::Object(obj) = &member_val.val else {
+        Report::build(ReportKind::Error, path, member_val.span.start)
+            .with_message("expected an escort mule object")
+            .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
+            .finish()
+            .print((path, Source::from(src)))?;
+        bail!("expected a escort mule object");
+    };
+
+    let mut unique_members = BTreeMap::new();
+
+    const EXPECTED_MEMBERS: [&'static str; 4] = [
+        "FriendlyFireModifier",
+        "NeutralDamageModifier",
+        "BigHitDamageModifier",
+        "BigHitDamageReductionThreshold",
+    ];
+
+    for (member_name, member_val) in &obj.val {
+        if let Err(OccupiedError { entry, .. }) =
+            unique_members.try_insert(member_name.to_owned(), member_val.to_owned())
+        {
+            Report::build(ReportKind::Error, path, member_name.span.start)
+                .with_message(format!(
+                    "member \"{}\" defined multiple times",
+                    member_name.val.as_str().fg(Color::Blue)
+                ))
+                .with_label(
+                    Label::new((path, entry.key().span.into_range()))
+                        .with_message(format!(
+                            "member \"{}\" first defined here",
+                            member_name.val.as_str().fg(Color::Blue)
+                        ))
+                        .with_color(Color::Red),
+                )
+                .with_label(
+                    Label::new((path, member_name.span.into_range()))
+                        .with_color(Color::Red)
+                        .with_message(format!(
+                            "member \"{}\" later redefined here",
+                            member_name.val.as_str().fg(Color::Blue)
+                        )),
+                )
+                .finish()
+                .print((path, Source::from(src)))?;
+
+            bail!("duplicate member detected");
+        }
+
+        if !EXPECTED_MEMBERS.contains(&member_name.val.as_str()) {
+            let mut report = Report::build(ReportKind::Error, path, member_name.span.start)
+                .with_message(format!("unexpected member: \"{}\"", member_name.val))
+                .with_label(
+                    Label::new((path, member_name.span.into_range())).with_color(Color::Red),
+                );
+            if let Some(suggestion) = edit_distance::find_best_match_for_name(
+                &EXPECTED_MEMBERS,
+                &member_name.val,
+                Some(3),
+            ) {
+                report.set_help(format!(
+                    "did you mean {} instead?",
+                    suggestion.fg(Color::Blue)
+                ));
+            }
+            report.finish().print((path, Source::from(src)))?;
+            bail!("unexpected member");
+        }
+    }
+
+    let friendly_fire_modifier_member = unique_members
+        .iter()
+        .find(|(k, _)| k.val == "FriendlyFireModifier");
+    let friendly_fire_modifier = if let Some((_, ffm_member_val)) = friendly_fire_modifier_member {
+        let Json::Num(n) = &ffm_member_val.val else {
+            unexpected_value_kind(path, member_val, "number").print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind {} found in \"FriendlyFireModifier\" member value; expected number",
+                ffm_member_val.val.kind_desc()
+            );
+        };
+        let val = match validate(Box::new(n.val), n.span) {
+            ValidationResult::Ok(val) => val,
+            ValidationResult::Err(report) => {
+                report.print((path, Source::from(src)))?;
+                bail!("invalid FriendlyFireModifier value");
+            }
+        };
+        Spanned {
+            span: ffm_member_val.span,
+            val,
+        }
+    } else {
+        Spanned {
+            span: dummy_sp(),
+            val: 0.0,
+        }
+    };
+
+    let neutral_damage_modifier_member = unique_members
+        .iter()
+        .find(|(k, _)| k.val == "NeutralDamageModifier");
+    let neutral_damage_modifier = if let Some((_, ndm_member_val)) = neutral_damage_modifier_member
+    {
+        let Json::Num(n) = &ndm_member_val.val else {
+            unexpected_value_kind(path, member_val, "number").print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind {} found in \"NeutralDamageModifier\" member value; expected number",
+                ndm_member_val.val.kind_desc()
+            );
+        };
+        let val = match validate(Box::new(n.val), n.span) {
+            ValidationResult::Ok(val) => val,
+            ValidationResult::Err(report) => {
+                report.print((path, Source::from(src)))?;
+                bail!("invalid NeutralDamageModifier value");
+            }
+        };
+        Spanned {
+            span: ndm_member_val.span,
+            val,
+        }
+    } else {
+        Spanned {
+            span: dummy_sp(),
+            val: 0.0,
+        }
+    };
+
+    let big_hit_damage_modifier_member = unique_members
+        .iter()
+        .find(|(k, _)| k.val == "BigHitDamageModifier");
+    let big_hit_damage_modifier = if let Some((_, bhm_member_val)) = big_hit_damage_modifier_member
+    {
+        let Json::Num(n) = &bhm_member_val.val else {
+            unexpected_value_kind(path, member_val, "number").print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind {} found in \"BigHitDamageModifier\" member value; expected number",
+                bhm_member_val.val.kind_desc()
+            );
+        };
+        let val = match validate(Box::new(n.val), n.span) {
+            ValidationResult::Ok(val) => val,
+            ValidationResult::Err(report) => {
+                report.print((path, Source::from(src)))?;
+                bail!("invalid BigHitDamageModifier value");
+            }
+        };
+        Spanned {
+            span: bhm_member_val.span,
+            val,
+        }
+    } else {
+        Spanned {
+            span: dummy_sp(),
+            val: 0.0,
+        }
+    };
+
+    let big_hit_damage_reduction_threshold_member = unique_members
+        .iter()
+        .find(|(k, _)| k.val == "BigHitDamageReductionThreshold");
+    let big_hit_damage_reduction_threshold = if let Some((_, bhm_member_val)) =
+        big_hit_damage_reduction_threshold_member
+    {
+        let Json::Num(n) = &bhm_member_val.val else {
+            unexpected_value_kind(path, member_val, "number").print((path, Source::from(src)))?;
+            bail!(
+                "unexpected JSON kind {} found in \"BigHitDamageReductionThreshold\" member value; expected number",
+                bhm_member_val.val.kind_desc()
+            );
+        };
+        let val = match validate(Box::new(n.val), n.span) {
+            ValidationResult::Ok(val) => val,
+            ValidationResult::Err(report) => {
+                report.print((path, Source::from(src)))?;
+                bail!("invalid BigHitDamageReductionThreshold value");
+            }
+        };
+        Spanned {
+            span: bhm_member_val.span,
+            val,
+        }
+    } else {
+        Spanned {
+            span: dummy_sp(),
+            val: 0.0,
+        }
+    };
+
+    *target = Spanned {
+        span: member_val.span,
+        val: EscortMule {
+            friendly_fire_modifier,
+            neutral_damage_modifier,
+            big_hit_damage_modifier,
+            big_hit_damage_reduction_threshold,
+        },
+    };
+
+    Ok(())
+}
+
 fn handle_top_level_members<'d, 'a>(
     diag: &mut Diagnostics<'d>,
     path: &'d String,
@@ -1068,13 +1454,56 @@ fn handle_top_level_members<'d, 'a>(
                 found_member_name,
                 mk_finite_nonnegative_f64_to_usize_validator(path),
             )?,
-            "EnemyPool" => todo!(),
-            "CommonEnemies" => todo!(),
-            "DisruptiveEnemies" => todo!(),
-            "SpecialEnemies" => todo!(),
-            "StationaryEnemies" => todo!(),
+            "EnemyPool" => handle_enemy_pool(
+                diag,
+                path,
+                src,
+                &mut cd.enemy_pool,
+                &member_val,
+                found_member_name,
+            )?,
+            "CommonEnemies" => handle_enemy_pool(
+                diag,
+                path,
+                src,
+                &mut cd.common_enemies,
+                &member_val,
+                found_member_name,
+            )?,
+            "DisruptiveEnemies" => handle_enemy_pool(
+                diag,
+                path,
+                src,
+                &mut cd.disruptive_enemies,
+                &member_val,
+                found_member_name,
+            )?,
+            "SpecialEnemies" => handle_enemy_pool(
+                diag,
+                path,
+                src,
+                &mut cd.special_enemies,
+                &member_val,
+                found_member_name,
+            )?,
+            "StationaryEnemies" => handle_enemy_pool(
+                diag,
+                path,
+                src,
+                &mut cd.stationary_enemies,
+                &member_val,
+                found_member_name,
+            )?,
             "EnemyDescriptors" => todo!(),
-            "EscortMule" => todo!(),
+            "EscortMule" => handle_escort_mule(
+                diag,
+                path,
+                src,
+                &mut cd.escort_mule,
+                &member_val,
+                found_member_name,
+                mk_finite_nonnegative_f64_validator(path),
+            )?,
             "SeasonalEvents" => todo!(),
             m => {
                 handle_unknown_top_level_member(path, src, &member_name, m)?;
@@ -1130,7 +1559,7 @@ fn handle_unknown_top_level_member(
     src: &str,
     member_name: &Spanned<String>,
     received_member_name: &str,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     const TOP_LEVEL_MEMBER_NAMES: [&'static str; 46] = [
         "Name",
         "Description",
