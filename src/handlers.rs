@@ -7,6 +7,7 @@ use anyhow::bail;
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::span::SimpleSpan;
 use indexmap::IndexMap;
+use tracing::*;
 
 use crate::custom_difficulty::{
     ArrayOrSingleItem, CustomDifficulty, EnemyDescriptor, EnemyPool, EscortMule, PawnStats, Range,
@@ -37,6 +38,7 @@ fn handle_str<'d>(
     Ok(())
 }
 
+#[instrument(skip(diag, path, src, expected_ty, target, validate))]
 fn handle_single_item_or_array_number<'d, 'a, 'n, T: 'static>(
     diag: &mut Diagnostics<'d>,
     path: &'d String,
@@ -50,14 +52,31 @@ fn handle_single_item_or_array_number<'d, 'a, 'n, T: 'static>(
     use std::any::TypeId;
 
     match &member_val.val {
-        Json::Array(a) if TypeId::of::<T>() == TypeId::of::<Vec<Json>>() => {
+        Json::Array(a) => {
             let mut arr = Vec::new();
             for elem in &a.val {
-                match validate(Box::new(elem.to_owned()), elem.span) {
-                    ValidationResult::Ok(val) => {
-                        arr.push(val);
+                debug!("elem.val = {:?}", &elem.val);
+                match &elem.val {
+                    Json::Num(a) => match validate(Box::new(a.val.to_owned()), a.span) {
+                        ValidationResult::Ok(val) => {
+                            arr.push(val);
+                        }
+                        ValidationResult::Err(report) => diag.push(report),
+                    },
+                    Json::Str(s) => match validate(Box::new(s.val.to_owned()), a.span) {
+                        ValidationResult::Ok(val) => {
+                            arr.push(val);
+                        }
+                        ValidationResult::Err(report) => diag.push(report),
+                    },
+                    Json::Object(_obj) => {
+                        unimplemented!()
                     }
-                    ValidationResult::Err(report) => diag.push(report),
+                    _ => {
+                        unexpected_value_kind(path, member_val, expected_ty)
+                            .print((path, Source::from(src)))?;
+                        bail!("unexpected JSON kind {} found in \"{member_name}\" member value; expected {expected_ty}", elem.val.kind_desc());
+                    }
                 }
             }
             *target = Spanned {
@@ -88,8 +107,12 @@ fn handle_single_item_or_array_number<'d, 'a, 'n, T: 'static>(
             }
         }
         _ => {
-            unexpected_value_kind(path, member_val, "{expected_ty} or array of {expected_ty}")
-                .print((path, Source::from(src)))?;
+            unexpected_value_kind(
+                path,
+                member_val,
+                &format!("{expected_ty} or array of {expected_ty}"),
+            )
+            .print((path, Source::from(src)))?;
             bail!("unexpected JSON kind {} found in \"{member_name}\" member value; expected {expected_ty} or array of {expected_ty}", member_val.val.kind_desc());
         }
     }
@@ -2277,7 +2300,7 @@ fn handle_unknown_top_level_member(
 fn unexpected_value_kind<'a, 'b>(
     path: &'a String,
     member_val: &'b Spanned<Json>,
-    expected_kind: &'static str,
+    expected_kind: &str,
 ) -> Report<'a, (&'a String, std::ops::Range<usize>)> {
     Report::<(&'a String, std::ops::Range<usize>)>::build(
         ReportKind::Error,
