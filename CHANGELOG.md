@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Bump suggestion max edit distance to 7.
+
 ## [0.1.6] - 2024-02-11
 
 - Add missing `ED_Spider_Stalker` as a vanilla Enemy Descriptor
