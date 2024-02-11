@@ -178,12 +178,7 @@ pub fn find_best_match_for_names<'a, 'b: 'd, 'c, 'd>(
 ) -> Option<&'d str> {
     lookups
         .iter()
-        .map(|s| {
-            (
-                s,
-                find_best_match_for_name_impl(false, candidates, s, dist),
-            )
-        })
+        .map(|s| (s, find_best_match_for_name_impl(false, candidates, s, dist)))
         .filter_map(|(s, r)| r.map(|r| (s, r)))
         .min_by(|(s1, r1), (s2, r2)| {
             let d1 = edit_distance(s1, r1, usize::MAX).unwrap();
@@ -267,10 +262,7 @@ fn find_best_match_for_name_impl<'a, 'b: 'c, 'c>(
     find_match_by_sorted_words(candidates, lookup)
 }
 
-fn find_match_by_sorted_words<'b>(
-    iter_names: &[&'b str],
-    lookup: &str,
-) -> Option<&'b str> {
+fn find_match_by_sorted_words<'b>(iter_names: &[&'b str], lookup: &str) -> Option<&'b str> {
     let lookup_sorted_by_words = sort_by_words(lookup);
     iter_names.iter().fold(None, |result, candidate| {
         if sort_by_words(candidate) == lookup_sorted_by_words {

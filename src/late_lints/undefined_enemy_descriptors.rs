@@ -41,9 +41,7 @@ pub fn lint_undefined_enemy_descriptors<'d>(
                         "attempt to reference undefined Enemy Descriptor \"{}\" as \"Base\"",
                         ed_def.val.base.val.as_str().fg(Color::Blue)
                     ))
-                    .with_label(
-                        Label::new((path, ed_def.span.into_range())).with_color(Color::Red),
-                    )
+                    .with_label(Label::new((path, ed_def.span.into_range())).with_color(Color::Red))
                     .finish(),
             );
         }

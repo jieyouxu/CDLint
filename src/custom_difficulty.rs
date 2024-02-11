@@ -40,8 +40,7 @@ pub struct WeightedRange<T> {
     pub range: Spanned<Range<T>>,
 }
 
-#[derive(Debug, PartialEq, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, PartialEq, Deserialize, Default)]
 pub struct EnemyPool {
     #[serde(default)]
     pub clear: Spanned<bool>,
@@ -50,8 +49,6 @@ pub struct EnemyPool {
     #[serde(default)]
     pub remove: Spanned<Vec<Spanned<String>>>,
 }
-
-
 
 #[derive(Debug, PartialEq, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
