@@ -224,18 +224,20 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
             }
         }
 
-        let weight_member = unique_members
+        let Some(weight_member) = unique_members
             .iter()
             .find(|(k, _)| k.val == "weight")
             .map(|(_, v)| v)
-            .unwrap();
+        else {
+            missing_expected_member(path, elem, "weight").print((path, Source::from(src)))?;
+            bail!("missing expected member: \"weight\"");
+        };
         let weight = {
             let Json::Num(n) = &weight_member.val else {
-                unexpected_value_kind(path, member_val, "number")
-                    .print((path, Source::from(src)))?;
+                unexpected_value_kind(path, elem, "number").print((path, Source::from(src)))?;
                 bail!(
                     "unexpected JSON kind {} found in \"weight\" member value; expected number",
-                    member_val.val.kind_desc()
+                    elem.val.kind_desc()
                 );
             };
             match weight_validate(Box::new(n.val), n.span) {
@@ -247,11 +249,14 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
             }
         };
 
-        let range_member = unique_members
+        let Some(range_member) = unique_members
             .iter()
             .find(|(k, _)| k.val == "range")
             .map(|(_, v)| v)
-            .unwrap();
+        else {
+            missing_expected_member(path, elem, "range").print((path, Source::from(src)))?;
+            bail!("missing expected member: \"range\"");
+        };
         let range = {
             let Json::Object(obj) = &range_member.val else {
                 Report::build(ReportKind::Error, path, range_member.span.start)
@@ -336,18 +341,24 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
                 }
             }
 
-            let min_member = unique_members
+            let Some(min_member) = unique_members
                 .iter()
                 .find(|(k, _)| k.val == "min")
                 .map(|(_, v)| v)
-                .unwrap();
+            else {
+                debug!(?range_member);
+                debug!("\n{}", &src[range_member.span.into_range()]);
+                missing_expected_member(path, range_member, "min")
+                    .print((path, Source::from(src)))?;
+                bail!("missing expected member: \"min\"");
+            };
             let min = {
                 let Json::Num(n) = &min_member.val else {
-                    unexpected_value_kind(path, member_val, "number")
+                    unexpected_value_kind(path, range_member, "number")
                         .print((path, Source::from(src)))?;
                     bail!(
                         "unexpected JSON kind {} found in \"min\" member value; expected number",
-                        member_val.val.kind_desc()
+                        range_member.val.kind_desc()
                     );
                 };
                 match range_validate(Box::new(n.val), n.span) {
@@ -359,18 +370,22 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
                 }
             };
 
-            let max_member = unique_members
+            let Some(max_member) = unique_members
                 .iter()
                 .find(|(k, _)| k.val == "max")
                 .map(|(_, v)| v)
-                .unwrap();
+            else {
+                missing_expected_member(path, range_member, "max")
+                    .print((path, Source::from(src)))?;
+                bail!("missing expected member: \"max\"");
+            };
             let max = {
                 let Json::Num(n) = &max_member.val else {
-                    unexpected_value_kind(path, member_val, "number")
+                    unexpected_value_kind(path, range_member, "number")
                         .print((path, Source::from(src)))?;
                     bail!(
                         "unexpected JSON kind {} found in \"max\" member value; expected number",
-                        member_val.val.kind_desc()
+                        range_member.val.kind_desc()
                     );
                 };
                 match range_validate(Box::new(n.val), n.span) {
@@ -536,11 +551,14 @@ fn handle_range<'d, 'a, 'n, T>(
         }
     }
 
-    let min_member = unique_members
+    let Some(min_member) = unique_members
         .iter()
         .find(|(k, _)| k.val == "min")
         .map(|(_, v)| v)
-        .unwrap();
+    else {
+        missing_expected_member(path, member_val, "min").print((path, Source::from(src)))?;
+        bail!("missing expected member: \"min\"");
+    };
     let min = {
         let Json::Num(n) = &min_member.val else {
             unexpected_value_kind(path, member_val, "number").print((path, Source::from(src)))?;
@@ -558,11 +576,14 @@ fn handle_range<'d, 'a, 'n, T>(
         }
     };
 
-    let max_member = unique_members
+    let Some(max_member) = unique_members
         .iter()
         .find(|(k, _)| k.val == "max")
         .map(|(_, v)| v)
-        .unwrap();
+    else {
+        missing_expected_member(path, member_val, "max").print((path, Source::from(src)))?;
+        bail!("missing expected member: \"max\"");
+    };
     let max = {
         let Json::Num(n) = &max_member.val else {
             unexpected_value_kind(path, member_val, "number").print((path, Source::from(src)))?;
@@ -2297,21 +2318,35 @@ fn handle_unknown_top_level_member(
     bail!("unexpected top-level member");
 }
 
-fn unexpected_value_kind<'a, 'b>(
-    path: &'a String,
-    member_val: &'b Spanned<Json>,
+fn unexpected_value_kind<'d, 'b>(
+    path: &'d String,
+    v: &'b Spanned<Json>,
     expected_kind: &str,
-) -> Report<'a, (&'a String, std::ops::Range<usize>)> {
-    Report::<(&'a String, std::ops::Range<usize>)>::build(
-        ReportKind::Error,
-        path,
-        member_val.span.start,
-    )
-    .with_message(format!(
-        "unexpected member value JSON kind: expected {} but found {}",
-        expected_kind.fg(Color::Blue),
-        member_val.val.kind_desc().fg(Color::Blue)
-    ))
-    .with_label(Label::new((path, member_val.span.into_range())).with_color(Color::Red))
-    .finish()
+) -> DiagnosticReport<'d> {
+    Report::build(ReportKind::Error, path, v.span.start)
+        .with_message(format!(
+            "unexpected member value JSON kind: expected {} but found {}",
+            expected_kind.fg(Color::Blue),
+            v.val.kind_desc().fg(Color::Blue)
+        ))
+        .with_label(Label::new((path, v.span.into_range())).with_color(Color::Red))
+        .finish()
+}
+
+fn missing_expected_member<'d, 'b>(
+    path: &'d String,
+    v: &'b Spanned<Json>,
+    name: &str,
+) -> DiagnosticReport<'d> {
+    Report::build(ReportKind::Error, path, v.span.start)
+        .with_message(format!(
+            "missing mandatory attribute: \"{}\"",
+            name.fg(Color::Blue),
+        ))
+        .with_label(
+            Label::new((path, v.span.into_range()))
+                .with_color(Color::Red)
+                .with_message(format!("this is missing \"{}\"", name.fg(Color::Blue))),
+        )
+        .finish()
 }
