@@ -243,5 +243,16 @@
         "ED_Custom": {
             "UseSpawnRarityModifiers": false
         }
+    },
+    "CommonEnemies": {
+        "clear": false,
+        "add": [
+            "CD_A",
+            "ED_Spider_Grunt"
+        ],
+        "remove": [
+            "CD_A",
+            "CD_B"
+        ]
     }
 }

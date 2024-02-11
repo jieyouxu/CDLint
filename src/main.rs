@@ -136,6 +136,12 @@ fn main() -> anyhow::Result<()> {
         &path,
         &mut diagnostics,
     );
+    late_lints::lint_ambiguous_enemy_pool_add_remove(
+        &config,
+        &custom_difficulty,
+        &path,
+        &mut diagnostics,
+    );
 
     for diagnostic in &diagnostics {
         diagnostic.print((&path, Source::from(&json_string)))?;
