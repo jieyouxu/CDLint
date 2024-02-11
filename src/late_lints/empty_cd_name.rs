@@ -2,12 +2,13 @@ use ariadne::{Color, Label, Report, ReportKind};
 
 use crate::config::Config;
 use crate::custom_difficulty::CustomDifficulty;
+use crate::Diagnostics;
 
-pub fn lint_empty_cd_name<'a>(
+pub fn lint_empty_cd_name<'d>(
     _config: &Config,
     cd: &CustomDifficulty,
-    path: &'a String,
-    diag: &mut Vec<Report<'a, (&'a String, std::ops::Range<usize>)>>,
+    path: &'d String,
+    diag: &mut Diagnostics<'d>,
 ) {
     if cd.name.val.is_empty() {
         diag.push(
