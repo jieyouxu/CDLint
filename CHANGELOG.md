@@ -3,6 +3,9 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Implement `min > max` lint
+- Fix handling of single or array of items
+- Fix handling of missing mandatory attributes
 
 ## [0.1.2] - 2024-02-11
 

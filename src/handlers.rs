@@ -2318,9 +2318,9 @@ fn handle_unknown_top_level_member(
     bail!("unexpected top-level member");
 }
 
-fn unexpected_value_kind<'d, 'b>(
+fn unexpected_value_kind<'d>(
     path: &'d String,
-    v: &'b Spanned<Json>,
+    v: &Spanned<Json>,
     expected_kind: &str,
 ) -> DiagnosticReport<'d> {
     Report::build(ReportKind::Error, path, v.span.start)
@@ -2333,9 +2333,9 @@ fn unexpected_value_kind<'d, 'b>(
         .finish()
 }
 
-fn missing_expected_member<'d, 'b>(
+fn missing_expected_member<'d>(
     path: &'d String,
-    v: &'b Spanned<Json>,
+    v: &Spanned<Json>,
     name: &str,
 ) -> DiagnosticReport<'d> {
     Report::build(ReportKind::Error, path, v.span.start)
