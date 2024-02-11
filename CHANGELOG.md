@@ -4,7 +4,8 @@
 
 ## [Unreleased] - ReleaseDate
 
-- No notable changes
+- Setup CHANGELOG.md automation
+- Improve CI via cargo-release
 
 ## [0.1.1] - 2024-02-11
 
