@@ -1,5 +1,7 @@
 # CDLint
 
+![A screenshot of CDLint producing diagnostics](./assets/screenshot.png)
+
 A linter for Custom Difficulty JSON files.
 
 ## Usage
