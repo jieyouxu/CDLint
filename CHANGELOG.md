@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Add missing `ED_Spider_Stalker` as a vanilla Enemy Descriptor
+
 ## [0.1.5] - 2024-02-11
 
 - Lint defunct `UseSpawnRarityModifiers` in Enemy Descriptors
