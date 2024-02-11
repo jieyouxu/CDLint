@@ -4,6 +4,8 @@
 ## [Unreleased] - ReleaseDate
 
 - Lint defunct `UseSpawnRarityModifiers` in Enemy Descriptors
+- Fix `unused-enemy-descriptors` lint to account for custom Enemy Descriptors 
+  with generated dummy "Base" members
 
 ## [0.1.4] - 2024-02-11
 
