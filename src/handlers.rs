@@ -794,7 +794,7 @@ fn handle_enemy_pool<'d>(
 }
 
 fn handle_enemy_descriptors<'d, 'a, 'n>(
-    _diag: &mut Diagnostics<'d>,
+    diag: &mut Diagnostics<'d>,
     path: &'d String,
     src: &'a str,
     target: &mut Spanned<IndexMap<Spanned<String>, Spanned<EnemyDescriptor>>>,
@@ -928,23 +928,33 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
             }
 
             if !EXPECTED_MEMBERS.contains(&ed_member_name.val.as_str()) {
-                let mut report = Report::build(ReportKind::Error, path, ed_member_name.span.start)
-                    .with_message(format!("unexpected member: \"{}\"", ed_member_name.val))
-                    .with_label(
-                        Label::new((path, ed_member_name.span.into_range())).with_color(Color::Red),
-                    );
-                if let Some(suggestion) = edit_distance::find_best_match_for_name(
-                    &EXPECTED_MEMBERS,
-                    &ed_member_name.val,
-                    Some(3),
-                ) {
-                    report.set_help(format!(
-                        "did you mean {} instead?",
-                        suggestion.fg(Color::Blue)
+                if ed_member_name.val == "UseSpawnRarityModifiers" {
+                    diag.push(defunct_member(
+                        path,
+                        ed_member_name.span,
+                        &ed_member_name.val,
                     ));
+                } else {
+                    let mut report =
+                        Report::build(ReportKind::Error, path, ed_member_name.span.start)
+                            .with_message(format!("unexpected member: \"{}\"", ed_member_name.val))
+                            .with_label(
+                                Label::new((path, ed_member_name.span.into_range()))
+                                    .with_color(Color::Red),
+                            );
+                    if let Some(suggestion) = edit_distance::find_best_match_for_name(
+                        &EXPECTED_MEMBERS,
+                        &ed_member_name.val,
+                        Some(3),
+                    ) {
+                        report.set_help(format!(
+                            "did you mean {} instead?",
+                            suggestion.fg(Color::Blue)
+                        ));
+                    }
+                    report.finish().print((path, Source::from(src)))?;
+                    bail!("unexpected member");
                 }
-                report.finish().print((path, Source::from(src)))?;
-                bail!("unexpected member");
             }
         }
 
@@ -2342,5 +2352,12 @@ fn missing_expected_member<'d>(
                 .with_color(Color::Red)
                 .with_message(format!("this is missing \"{}\"", name.fg(Color::Blue))),
         )
+        .finish()
+}
+
+fn defunct_member<'d>(path: &'d String, span: SimpleSpan, name: &str) -> DiagnosticReport<'d> {
+    Report::build(ReportKind::Warning, path, span.start)
+        .with_message(format!("\"{}\" is non-functional", name.fg(Color::Blue),))
+        .with_label(Label::new((path, span.into_range())).with_color(Color::Yellow))
         .finish()
 }
