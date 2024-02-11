@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Fix handling of single numbers and strings
+
 ## [0.1.3] - 2024-02-11
 
 - Implement `min > max` lint
