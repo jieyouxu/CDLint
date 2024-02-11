@@ -239,6 +239,7 @@
         "NeutralDamageModifier": 0.1
     },
     "EnemyDescriptors": {
+        "ED_Grabber": {},
         "ED_Custom": {
             "UseSpawnRarityModifiers": false
         }
