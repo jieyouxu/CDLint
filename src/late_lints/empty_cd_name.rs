@@ -4,9 +4,9 @@ use tracing::*;
 use crate::config::Config;
 use crate::custom_difficulty::CustomDifficulty;
 
-pub fn lint_empty_cd_name<'cd, 'a, 'b>(
+pub fn lint_empty_cd_name<'a>(
     _config: &Config,
-    cd: &'cd CustomDifficulty,
+    cd: &CustomDifficulty,
     path: &'a String,
     diag: &mut Vec<Report<'a, (&'a String, std::ops::Range<usize>)>>,
 ) {

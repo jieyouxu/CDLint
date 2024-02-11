@@ -50,7 +50,7 @@ fn main() -> anyhow::Result<()> {
     if !config_path.exists() {
         debug!("generating default config at `{}`", config_path.display());
         let default_config = confique::toml::template::<Config>(FormatOptions::default());
-        std::fs::write(&config_path, &default_config)?;
+        std::fs::write(&config_path, default_config)?;
     }
 
     let config = Config::builder().env().file(&config_path).load()?;

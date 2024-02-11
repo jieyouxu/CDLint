@@ -8,9 +8,9 @@ use crate::late_lints::VANILLA_ENEMY_DESCRIPTORS;
 use crate::spanned::Spanned;
 use crate::Diagnostics;
 
-pub fn lint_undefined_enemy_descriptors<'cd, 'd, 'b>(
+pub fn lint_undefined_enemy_descriptors<'d>(
     config: &Config,
-    cd: &'cd CustomDifficulty,
+    cd: &CustomDifficulty,
     path: &'d String,
     diag: &mut Diagnostics<'d>,
 ) {
@@ -34,20 +34,18 @@ pub fn lint_undefined_enemy_descriptors<'cd, 'd, 'b>(
             } else {
                 defined_enemy_descriptors.insert(ed_name.val.to_owned());
             }
-        } else {
-            if !defined_enemy_descriptors.contains(&ed_def.val.base.val) {
-                diag.push(
-                    Report::build(ReportKind::Error, path, ed_def.val.base.span.start)
-                        .with_message(format!(
-                            "attempt to reference undefined Enemy Descriptor \"{}\" as \"Base\"",
-                            ed_def.val.base.val.as_str().fg(Color::Blue)
-                        ))
-                        .with_label(
-                            Label::new((path, ed_def.span.into_range())).with_color(Color::Red),
-                        )
-                        .finish(),
-                );
-            }
+        } else if !defined_enemy_descriptors.contains(&ed_def.val.base.val) {
+            diag.push(
+                Report::build(ReportKind::Error, path, ed_def.val.base.span.start)
+                    .with_message(format!(
+                        "attempt to reference undefined Enemy Descriptor \"{}\" as \"Base\"",
+                        ed_def.val.base.val.as_str().fg(Color::Blue)
+                    ))
+                    .with_label(
+                        Label::new((path, ed_def.span.into_range())).with_color(Color::Red),
+                    )
+                    .finish(),
+            );
         }
     }
 

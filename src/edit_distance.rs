@@ -42,7 +42,7 @@ pub fn edit_distance(a: &str, b: &str, limit: usize) -> Option<usize> {
 
     // If either string is empty, the distance is the length of the other.
     // We know that `b` is the shorter string, so we don't need to check `a`.
-    if b.len() == 0 {
+    if b.is_empty() {
         return Some(min_dist);
     }
 
@@ -181,7 +181,7 @@ pub fn find_best_match_for_names<'a, 'b: 'd, 'c, 'd>(
         .map(|s| {
             (
                 s,
-                find_best_match_for_name_impl(false, candidates, *s, dist),
+                find_best_match_for_name_impl(false, candidates, s, dist),
             )
         })
         .filter_map(|(s, r)| r.map(|r| (s, r)))
@@ -267,8 +267,8 @@ fn find_best_match_for_name_impl<'a, 'b: 'c, 'c>(
     find_match_by_sorted_words(candidates, lookup)
 }
 
-fn find_match_by_sorted_words<'a, 'b, 'c>(
-    iter_names: &'a [&'b str],
+fn find_match_by_sorted_words<'b>(
+    iter_names: &[&'b str],
     lookup: &str,
 ) -> Option<&'b str> {
     let lookup_sorted_by_words = sort_by_words(lookup);

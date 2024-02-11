@@ -41,6 +41,7 @@ pub struct WeightedRange<T> {
 }
 
 #[derive(Debug, PartialEq, Deserialize)]
+#[derive(Default)]
 pub struct EnemyPool {
     #[serde(default)]
     pub clear: Spanned<bool>,
@@ -50,15 +51,7 @@ pub struct EnemyPool {
     pub remove: Spanned<Vec<Spanned<String>>>,
 }
 
-impl Default for EnemyPool {
-    fn default() -> Self {
-        Self {
-            clear: Default::default(),
-            add: Default::default(),
-            remove: Default::default(),
-        }
-    }
-}
+
 
 #[derive(Debug, PartialEq, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]

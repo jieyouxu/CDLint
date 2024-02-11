@@ -1,4 +1,4 @@
-pub const VANILLA_ENEMY_DESCRIPTORS: [&'static str; 86] = [
+pub const VANILLA_ENEMY_DESCRIPTORS: [&str; 86] = [
     "ED_Bomber",
     "ED_Bomber_Explosive",
     "ED_Bomber_Ice",

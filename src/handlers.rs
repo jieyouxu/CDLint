@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -5,7 +7,6 @@ use anyhow::bail;
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::span::SimpleSpan;
 use indexmap::IndexMap;
-use tracing::*;
 
 use crate::custom_difficulty::{
     ArrayOrSingleItem, CustomDifficulty, EnemyDescriptor, EnemyPool, EscortMule, PawnStats, Range,
@@ -19,13 +20,13 @@ fn dummy_sp() -> SimpleSpan {
     SimpleSpan::new(0, 0)
 }
 
-fn handle_str<'d, 'a, 'n>(
+fn handle_str<'d>(
     _diag: &mut Diagnostics<'d>,
     path: &'d String,
-    src: &'a str,
+    src: &str,
     target: &mut Spanned<String>,
     member_val: &Spanned<Json>,
-    member_name: &'n str,
+    member_name: &str,
 ) -> anyhow::Result<()> {
     *target = if let Json::Str(s) = &member_val.val {
         s.to_owned()
@@ -171,7 +172,7 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
             }
         }
 
-        const EXPECTED_MEMBERS: [&'static str; 2] = ["weight", "range"];
+        const EXPECTED_MEMBERS: [&str; 2] = ["weight", "range"];
 
         for found_member_name in unique_members.keys() {
             if !EXPECTED_MEMBERS.contains(&found_member_name.val.as_str()) {
@@ -283,7 +284,7 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
                 }
             }
 
-            const EXPECTED_MEMBERS: [&'static str; 2] = ["min", "max"];
+            const EXPECTED_MEMBERS: [&str; 2] = ["min", "max"];
 
             for found_member_name in unique_members.keys() {
                 if !EXPECTED_MEMBERS.contains(&found_member_name.val.as_str()) {
@@ -485,7 +486,7 @@ fn handle_range<'d, 'a, 'n, T>(
         }
     }
 
-    const EXPECTED_MEMBERS: [&'static str; 2] = ["min", "max"];
+    const EXPECTED_MEMBERS: [&str; 2] = ["min", "max"];
 
     for found_member_name in unique_members.keys() {
         if !EXPECTED_MEMBERS.contains(&found_member_name.val.as_str()) {
@@ -573,13 +574,13 @@ fn handle_range<'d, 'a, 'n, T>(
     Ok(())
 }
 
-fn handle_enemy_pool<'d, 'a, 'n>(
+fn handle_enemy_pool<'d>(
     _diag: &mut Diagnostics<'d>,
     path: &'d String,
-    src: &'a str,
+    src: &str,
     target: &mut Spanned<EnemyPool>,
     member_val: &Spanned<Json>,
-    _member_name: &'n str,
+    _member_name: &str,
 ) -> anyhow::Result<()> {
     let Json::Object(obj) = &member_val.val else {
         Report::build(ReportKind::Error, path, member_val.span.start)
@@ -593,7 +594,7 @@ fn handle_enemy_pool<'d, 'a, 'n>(
     let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
     let mut unique_member_names = BTreeSet::new();
 
-    const EXPECTED_MEMBERS: [&'static str; 3] = ["clear", "add", "remove"];
+    const EXPECTED_MEMBERS: [&str; 3] = ["clear", "add", "remove"];
 
     for (member_name, member_val) in &obj.val {
         if !unique_member_names.insert(member_name.val.to_owned()) {
@@ -828,7 +829,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
             bail!("expected a enemy descriptor object");
         };
 
-        const EXPECTED_MEMBERS: [&'static str; 14] = [
+        const EXPECTED_MEMBERS: [&str; 14] = [
             "Base",
             "SpawnSpread",
             "IdealSpawnSize",
@@ -1313,7 +1314,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                 }
             }
 
-            const EXPECTED_MEMBERS: [&'static str; 48] = [
+            const EXPECTED_MEMBERS: [&str; 48] = [
                 "PST_BarrelKicking",
                 "PST_CarriableThrowing",
                 "PST_CarryingCapacity",
@@ -1466,7 +1467,7 @@ fn handle_escort_mule<'d, 'a, 'n>(
         bail!("expected a escort mule object");
     };
 
-    const EXPECTED_MEMBERS: [&'static str; 4] = [
+    const EXPECTED_MEMBERS: [&str; 4] = [
         "FriendlyFireModifier",
         "NeutralDamageModifier",
         "BigHitDamageModifier",
@@ -1670,10 +1671,10 @@ fn handle_escort_mule<'d, 'a, 'n>(
     Ok(())
 }
 
-pub(crate) fn handle_top_level_members<'d, 'a>(
+pub(crate) fn handle_top_level_members<'d>(
     diag: &mut Diagnostics<'d>,
     path: &'d String,
-    src: &'a str,
+    src: &str,
     cd: &mut CustomDifficulty,
     top_level_members: &Vec<(Spanned<String>, Spanned<Json>)>,
 ) -> anyhow::Result<()> {
@@ -2207,7 +2208,7 @@ fn handle_unknown_top_level_member(
     member_name: &Spanned<String>,
     received_member_name: &str,
 ) -> anyhow::Result<()> {
-    const TOP_LEVEL_MEMBER_NAMES: [&'static str; 46] = [
+    const TOP_LEVEL_MEMBER_NAMES: [&str; 46] = [
         "Name",
         "Description",
         "MaxActiveCritters",
