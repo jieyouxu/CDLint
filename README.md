@@ -12,7 +12,7 @@ Open your shell (e.g. PowerShell) and run the executable, providing the path
 to the Custom Difficulty JSON file you wish to lint:
 
 ```bash
-<path-to-cdlint-executable> <path-to-cd-json>
+& "path\to\cdlint.exe" "path\to\cd.json"
 ```
 
 ### Configuration File
