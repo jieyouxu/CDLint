@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Lint defunct `UseSpawnRarityModifiers` in Enemy Descriptors
+
 ## [0.1.4] - 2024-02-11
 
 - Fix handling of single numbers and strings
