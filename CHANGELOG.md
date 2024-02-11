@@ -3,7 +3,9 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
-- Bump suggestion max edit distance to 7.
+- Bump suggestion max edit distance to 7
+- Implement `ambiguous-enemy-pool-add-remove` lint, which detects if you add
+  and remove the same Enemy Descriptor from an enemy pool
 
 ## [0.1.6] - 2024-02-11
 
