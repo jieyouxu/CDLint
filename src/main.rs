@@ -39,6 +39,10 @@ pub enum ValidationResult<'d, T> {
     Err(DiagnosticReport<'d>),
 }
 
+pub(crate) fn dummy_sp() -> SimpleSpan {
+    SimpleSpan::new(0, 0)
+}
+
 fn main() -> anyhow::Result<()> {
     logging::setup_logging();
 

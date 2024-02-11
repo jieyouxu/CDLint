@@ -6,7 +6,7 @@ use crate::config::Config;
 use crate::custom_difficulty::CustomDifficulty;
 use crate::late_lints::VANILLA_ENEMY_DESCRIPTORS;
 use crate::spanned::Spanned;
-use crate::Diagnostics;
+use crate::{dummy_sp, Diagnostics};
 
 pub fn lint_undefined_enemy_descriptors<'d>(
     config: &Config,
@@ -34,7 +34,9 @@ pub fn lint_undefined_enemy_descriptors<'d>(
             } else {
                 defined_enemy_descriptors.insert(ed_name.val.to_owned());
             }
-        } else if !defined_enemy_descriptors.contains(&ed_def.val.base.val) {
+        } else if ed_def.val.base.span != dummy_sp()
+            && !defined_enemy_descriptors.contains(&ed_def.val.base.val)
+        {
             diag.push(
                 Report::build(ReportKind::Error, path, ed_def.val.base.span.start)
                     .with_message(format!(

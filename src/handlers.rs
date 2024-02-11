@@ -15,11 +15,7 @@ use crate::custom_difficulty::{
 };
 use crate::parser::Json;
 use crate::spanned::Spanned;
-use crate::{edit_distance, DiagnosticReport, Diagnostics, ValidationResult};
-
-fn dummy_sp() -> SimpleSpan {
-    SimpleSpan::new(0, 0)
-}
+use crate::{dummy_sp, edit_distance, DiagnosticReport, Diagnostics, ValidationResult};
 
 fn handle_str<'d>(
     _diag: &mut Diagnostics<'d>,
