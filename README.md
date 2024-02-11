@@ -2,7 +2,9 @@
 
 ![A screenshot of CDLint producing diagnostics](./assets/screenshot.png)
 
-A linter for Custom Difficulty JSON files.
+A linter for Custom Difficulty JSON files. Scans a Custom Difficulty JSON to
+check for potential problems, such as referencing undefined Enemy Descriptors.
+It should help Custom Difficulty makers to detect issues outside the game.
 
 ## Usage
 
