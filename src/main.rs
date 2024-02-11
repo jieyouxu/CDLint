@@ -125,8 +125,9 @@ fn main() -> anyhow::Result<()> {
         &path,
         &mut diagnostics,
     );
+    late_lints::lint_min_larger_than_max(&config, &custom_difficulty, &path, &mut diagnostics);
 
-    for diagnostic in diagnostics {
+    for diagnostic in &diagnostics {
         diagnostic.print((&path, Source::from(&json_string)))?;
     }
 

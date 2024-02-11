@@ -1,6 +1,5 @@
 use ariadne::{Color, Label, Report, ReportKind};
 
-
 use crate::config::Config;
 use crate::custom_difficulty::CustomDifficulty;
 
