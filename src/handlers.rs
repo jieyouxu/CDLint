@@ -49,8 +49,6 @@ fn handle_single_item_or_array_number<'d, 'a, 'n, T: 'static>(
     member_name: &'n str,
     validate: impl Fn(Box<dyn Any>, SimpleSpan) -> ValidationResult<'d, T>,
 ) -> anyhow::Result<()> {
-    use std::any::TypeId;
-
     match &member_val.val {
         Json::Array(a) => {
             let mut arr = Vec::new();
@@ -84,28 +82,24 @@ fn handle_single_item_or_array_number<'d, 'a, 'n, T: 'static>(
                 val: ArrayOrSingleItem::Array(arr),
             };
         }
-        Json::Num(n) if TypeId::of::<T>() == TypeId::of::<f64>() => {
-            match validate(Box::new(n.val), n.span) {
-                ValidationResult::Ok(val) => {
-                    *target = Spanned {
-                        span: member_val.span,
-                        val: ArrayOrSingleItem::SingleItem(val),
-                    }
+        Json::Num(n) => match validate(Box::new(n.val), n.span) {
+            ValidationResult::Ok(val) => {
+                *target = Spanned {
+                    span: member_val.span,
+                    val: ArrayOrSingleItem::SingleItem(val),
                 }
-                ValidationResult::Err(report) => diag.push(report),
             }
-        }
-        Json::Str(s) if TypeId::of::<T>() == TypeId::of::<String>() => {
-            match validate(Box::new(s.val.to_owned()), s.span) {
-                ValidationResult::Ok(val) => {
-                    *target = Spanned {
-                        span: member_val.span,
-                        val: ArrayOrSingleItem::SingleItem(val),
-                    }
+            ValidationResult::Err(report) => diag.push(report),
+        },
+        Json::Str(s) => match validate(Box::new(s.val.to_owned()), s.span) {
+            ValidationResult::Ok(val) => {
+                *target = Spanned {
+                    span: member_val.span,
+                    val: ArrayOrSingleItem::SingleItem(val),
                 }
-                ValidationResult::Err(report) => diag.push(report),
             }
-        }
+            ValidationResult::Err(report) => diag.push(report),
+        },
         _ => {
             unexpected_value_kind(
                 path,
