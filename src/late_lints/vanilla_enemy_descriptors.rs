@@ -1,4 +1,4 @@
-pub const VANILLA_ENEMY_DESCRIPTORS: [&str; 86] = [
+pub const VANILLA_ENEMY_DESCRIPTORS: [&str; 87] = [
     "ED_Bomber",
     "ED_Bomber_Explosive",
     "ED_Bomber_Ice",
@@ -85,4 +85,5 @@ pub const VANILLA_ENEMY_DESCRIPTORS: [&str; 86] = [
     "ED_WalkingPlagueheart",
     "ED_Woodlouse",
     "ED_Woodlouse_Youngling",
+    "ED_Spider_Stalker",
 ];
