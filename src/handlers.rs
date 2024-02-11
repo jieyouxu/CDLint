@@ -17,6 +17,8 @@ use crate::parser::Json;
 use crate::spanned::Spanned;
 use crate::{dummy_sp, edit_distance, DiagnosticReport, Diagnostics, ValidationResult};
 
+const SUGGESTION_MAX_EDIT_DISTANCE: usize = 7;
+
 fn handle_str<'d>(
     _diag: &mut Diagnostics<'d>,
     path: &'d String,
@@ -202,7 +204,7 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
                 if let Some(suggestion) = edit_distance::find_best_match_for_name(
                     &EXPECTED_MEMBERS,
                     &found_member_name.val,
-                    Some(3),
+                    Some(SUGGESTION_MAX_EDIT_DISTANCE),
                 ) {
                     report.set_help(format!(
                         "did you mean {} instead?",
@@ -679,7 +681,7 @@ fn handle_enemy_pool<'d>(
             if let Some(suggestion) = edit_distance::find_best_match_for_name(
                 &EXPECTED_MEMBERS,
                 &member_name.val,
-                Some(3),
+                Some(SUGGESTION_MAX_EDIT_DISTANCE),
             ) {
                 report.set_help(format!(
                     "did you mean {} instead?",
@@ -941,7 +943,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                     if let Some(suggestion) = edit_distance::find_best_match_for_name(
                         &EXPECTED_MEMBERS,
                         &ed_member_name.val,
-                        Some(3),
+                        Some(SUGGESTION_MAX_EDIT_DISTANCE),
                     ) {
                         report.set_help(format!(
                             "did you mean {} instead?",
@@ -1424,7 +1426,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                     if let Some(suggestion) = edit_distance::find_best_match_for_name(
                         &EXPECTED_MEMBERS,
                         &found_member_name.val,
-                        Some(3),
+                        Some(SUGGESTION_MAX_EDIT_DISTANCE),
                     ) {
                         report.set_help(format!(
                             "did you mean {} instead?",
@@ -1570,7 +1572,7 @@ fn handle_escort_mule<'d, 'a, 'n>(
             if let Some(suggestion) = edit_distance::find_best_match_for_name(
                 &EXPECTED_MEMBERS,
                 &member_name.val,
-                Some(3),
+                Some(SUGGESTION_MAX_EDIT_DISTANCE),
             ) {
                 report.set_help(format!(
                     "did you mean {} instead?",
@@ -2307,7 +2309,7 @@ fn handle_unknown_top_level_member(
     if let Some(suggestion) = edit_distance::find_best_match_for_name(
         &TOP_LEVEL_MEMBER_NAMES,
         received_member_name,
-        Some(3),
+        Some(SUGGESTION_MAX_EDIT_DISTANCE),
     ) {
         report.set_help(format!(
             "did you mean {} instead?",
