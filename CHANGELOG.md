@@ -3,6 +3,10 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Implement `cyclic-enemy-descriptor-references` lint, which detects if
+  `Base` attributes in custom Enemy Descriptor definition forms cycles with
+  each other.
+
 ## [0.1.7] - 2024-02-11
 
 - Bump suggestion max edit distance to 7
