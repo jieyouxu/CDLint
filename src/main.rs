@@ -1,4 +1,5 @@
 #![feature(let_chains)]
+#![feature(min_specialization)]
 
 use std::path::PathBuf;
 
@@ -142,6 +143,12 @@ fn main() -> anyhow::Result<()> {
         &path,
         &mut diagnostics,
     );
+    late_lints::lint_cyclic_enemy_descriptor_references(
+        &config,
+        &custom_difficulty,
+        &path,
+        &mut diagnostics,
+    )?;
 
     for diagnostic in &diagnostics {
         diagnostic.print((&path, Source::from(&json_string)))?;
