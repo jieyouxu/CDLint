@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Fix cycle string for `cyclic-enemy-descriptor-references` lint.
+
 ## [0.1.8] - 2024-02-14
 
 - Implement `cyclic-enemy-descriptor-references` lint, which detects if
