@@ -94,7 +94,7 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
     for (i, cycle) in cycles.iter().enumerate() {
         let mut cycle_string = String::new();
 
-        let mut cycle_nodes = HashSet::new();
+        let mut cycle_nodes = IndexSet::new();
         cycle.iter().for_each(|edge_idx| {
             let (src, dst) = digraph
                 .edge_references()
@@ -113,13 +113,19 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
             // A -> B -> C -> D (A, B) (B, C) (C, D)
 
             let partial = if j == 0 {
-                format!("\"{}\"", name.fg(Color::Blue),)
+                format!("\"{}\"", name.fg(Color::Blue))
             } else {
-                format!(" -> \"{}\"", name.fg(Color::Blue),)
+                format!(" -> \"{}\"", name.fg(Color::Blue))
             };
 
             cycle_string.push_str(&partial);
         }
+
+        cycle_string.push_str(&format!(" -> \"{}\"", {
+            let node_idx = cycle_nodes.first().unwrap();
+            let name = id_to_name.get(node_idx).unwrap();
+            name.fg(Color::Blue)
+        }));
 
         diag.push(
             Report::build(ReportKind::Error, path, cd.enemy_descriptors.span.start)
