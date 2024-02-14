@@ -137,7 +137,7 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
         let out_dir = std::env::current_dir()?;
         let out_file = out_dir.join("cyclic_enemy_descriptor_references.dot");
         std::fs::write(
-            &out_file,
+            out_file,
             format!(
                 "{:?}",
                 Dot::with_config(&digraph, &[DotConfig::EdgeNoLabel])
