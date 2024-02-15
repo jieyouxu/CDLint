@@ -3,6 +3,9 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Account for user-specified extra Enemy Descriptors when considering
+  which Enemy Descriptors are defined but not used.
+
 ## [0.1.10] - 2024-02-15
 
 - Generate and load config at `$CWD`.
