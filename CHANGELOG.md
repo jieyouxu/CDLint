@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+## [0.1.12] - 2024-02-15
+
 - Fix `cyclic-enemy-descriptor-references` to populate name <-> id maps
   with vanilla and user-specified Enemy Descriptors.
 
@@ -63,7 +65,8 @@
 - Initial test release
 
 <!-- next-url -->
-[Unreleased]: https://github.com/jieyouxu/CDLint/compare/v0.1.11...HEAD
+[Unreleased]: https://github.com/jieyouxu/CDLint/compare/v0.1.12...HEAD
+[0.1.12]: https://github.com/jieyouxu/CDLint/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/jieyouxu/CDLint/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/jieyouxu/CDLint/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/jieyouxu/CDLint/compare/v0.1.8...v0.1.9
