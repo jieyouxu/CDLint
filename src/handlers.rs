@@ -2193,7 +2193,10 @@ pub(crate) fn handle_top_level_members<'d>(
             )?,
             "SeasonalEvents" => diag.push(
                 Report::build(ReportKind::Warning, path, member_name.span.start)
-                    .with_message("\"SeasonalEvents\" is no longer functional")
+                    .with_message(format!(
+                        "\"{}\" is no longer functional",
+                        found_member_name.fg(Color::Blue)
+                    ))
                     .with_label(
                         Label::new((path, member_name.span.into_range())).with_color(Color::Yellow),
                     )
