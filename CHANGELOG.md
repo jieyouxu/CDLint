@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+## [0.1.11] - 2024-02-15
+
 - Account for user-specified extra Enemy Descriptors when considering
   which Enemy Descriptors are defined but not used.
 
@@ -58,7 +60,8 @@
 - Initial test release
 
 <!-- next-url -->
-[Unreleased]: https://github.com/jieyouxu/CDLint/compare/v0.1.10...HEAD
+[Unreleased]: https://github.com/jieyouxu/CDLint/compare/v0.1.11...HEAD
+[0.1.11]: https://github.com/jieyouxu/CDLint/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/jieyouxu/CDLint/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/jieyouxu/CDLint/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/jieyouxu/CDLint/compare/v0.1.7...v0.1.8
