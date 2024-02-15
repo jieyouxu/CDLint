@@ -18,7 +18,7 @@ to the Custom Difficulty JSON file you wish to lint:
 ### Configuration File
 
 By default, CDLint will generate a `config.toml` configuration file in the
-same directory as the CDLint executable. You can specify e.g. which custom
+current working directory. You can specify e.g. which custom
 Enemy Descriptors you have added via modding (e.g. added by MEV).
 
 ### Consuming `cyclic_enemy_descriptor_references.dot`
