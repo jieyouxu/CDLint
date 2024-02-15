@@ -15,6 +15,7 @@ use tracing::*;
 
 use crate::config::Config;
 use crate::custom_difficulty::CustomDifficulty;
+use crate::late_lints::VANILLA_ENEMY_DESCRIPTORS;
 use crate::Diagnostics;
 
 /// Enemy descriptors may cyclically reference each other via their "Base" field, but this is not
@@ -52,14 +53,27 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
             .or_insert_with(|| IndexSet::from([ed.base.val.to_owned()]));
     }
 
+    debug!("graph =\n{:#?}", graph);
+
     // Assign IDs to each of the Enemy Descriptors.
-    let vertices = graph.keys().collect::<Vec<_>>();
+    let mut vertices = Vec::new();
+    vertices.extend(
+        config
+            .extra_enemy_descriptors
+            .iter()
+            .map(ToString::to_string),
+    );
+    vertices.extend(VANILLA_ENEMY_DESCRIPTORS.iter().map(ToString::to_string));
+    vertices.extend(graph.keys().map(ToString::to_string));
     let mut string_edges = Vec::new();
     for (name, adjs) in &graph {
         for adj in adjs {
             string_edges.push((name.to_owned(), adj.to_owned()));
         }
     }
+
+    debug!("vertices = {:#?}", vertices);
+    debug!("string_edges = {:#?}", string_edges);
 
     let mut digraph: DiGraph<String, ()> = DiGraph::new();
     let mut name_to_id: HashMap<String, NodeIndex> = HashMap::new();
@@ -70,9 +84,13 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
         id_to_name.insert(node_idx, node.to_string());
     }
 
+    debug!("name_to_id = {:#?}", name_to_id);
+    debug!("id_to_name = {:#?}", id_to_name);
+
     let mut edges = Vec::new();
 
     for (v, w) in string_edges {
+        debug!(?v, ?w);
         let edge_idx = digraph.add_edge(
             *name_to_id.get(&v).unwrap(),
             *name_to_id.get(&w).unwrap(),
