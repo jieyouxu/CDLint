@@ -10,14 +10,16 @@ use crate::Diagnostics;
 use super::VANILLA_ENEMY_DESCRIPTORS;
 
 pub fn lint_unused_custom_enemy_descriptors<'d>(
-    _config: &Config,
+    config: &Config,
     cd: &CustomDifficulty,
     path: &'d String,
     diag: &mut Diagnostics<'d>,
 ) {
     let mut custom_descriptors_usage = BTreeMap::new();
     for ed_name in cd.enemy_descriptors.val.keys() {
-        if !VANILLA_ENEMY_DESCRIPTORS.contains(&ed_name.val.as_str()) {
+        if !VANILLA_ENEMY_DESCRIPTORS.contains(&ed_name.val.as_str())
+            && !config.extra_enemy_descriptors.contains(&ed_name.val)
+        {
             custom_descriptors_usage.insert(ed_name.val.to_owned(), (ed_name.span, false));
         }
     }
