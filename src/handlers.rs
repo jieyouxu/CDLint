@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::any::Any;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use anyhow::bail;
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
@@ -145,7 +145,7 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
             bail!("expected a weighted range object");
         };
 
-        let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
+        let mut unique_members: IndexMap<Spanned<String>, Spanned<Json>> = IndexMap::new();
         let mut unique_member_names = BTreeSet::new();
         for (member_name, member_val) in &obj.val {
             if !unique_member_names.insert(member_name.val.to_owned()) {
@@ -261,7 +261,7 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
                 bail!("expected a range object");
             };
 
-            let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
+            let mut unique_members: IndexMap<Spanned<String>, Spanned<Json>> = IndexMap::new();
             let mut unique_member_names = BTreeSet::new();
 
             for (member_name, member_val) in &obj.val {
@@ -474,7 +474,7 @@ fn handle_range<'d, 'a, 'n, T>(
         bail!("expected a range object");
     };
 
-    let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
+    let mut unique_members: IndexMap<Spanned<String>, Spanned<Json>> = IndexMap::new();
     let mut unique_member_names = BTreeSet::new();
     for (member_name, member_val) in &obj.val {
         if !unique_member_names.insert(member_name.val.to_owned()) {
@@ -627,7 +627,7 @@ fn handle_enemy_pool<'d>(
         bail!("expected a enemy pool object");
     };
 
-    let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
+    let mut unique_members: IndexMap<Spanned<String>, Spanned<Json>> = IndexMap::new();
     let mut unique_member_names = BTreeSet::new();
 
     const EXPECTED_MEMBERS: [&str; 3] = ["clear", "add", "remove"];
@@ -812,7 +812,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
 
     let mut descriptors = IndexMap::default();
 
-    let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
+    let mut unique_members: IndexMap<Spanned<String>, Spanned<Json>> = IndexMap::new();
     let mut unique_member_names = BTreeSet::new();
     for (name, ed) in &obj.val {
         if !unique_member_names.insert(name.val.to_owned()) {
@@ -882,7 +882,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
             "PawnStats",
         ];
 
-        let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
+        let mut unique_members: IndexMap<Spanned<String>, Spanned<Json>> = IndexMap::new();
         let mut unique_member_names = BTreeSet::new();
 
         for (ed_member_name, ed_member_value) in &ed_obj.val {
@@ -1318,7 +1318,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                 );
             };
 
-            let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
+            let mut unique_members: IndexMap<Spanned<String>, Spanned<Json>> = IndexMap::new();
             let mut unique_member_names = BTreeSet::new();
             for (member_name, member_val) in &pawn_stats_map.val {
                 if !unique_member_names.insert(member_name.val.to_owned()) {
@@ -1438,7 +1438,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                 }
             }
 
-            let mut pawn_stats = BTreeMap::new();
+            let mut pawn_stats = IndexMap::new();
 
             for (name, val) in &unique_members {
                 let Json::Num(pawn_stat_val) = &val.val else {
@@ -1521,7 +1521,7 @@ fn handle_escort_mule<'d, 'a, 'n>(
     ];
 
     let mut unique_member_names = BTreeSet::new();
-    let mut unique_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
+    let mut unique_members: IndexMap<Spanned<String>, Spanned<Json>> = IndexMap::new();
 
     for (member_name, member_val) in &obj.val {
         if !unique_member_names.insert(member_name.val.to_owned()) {
@@ -1724,7 +1724,7 @@ pub(crate) fn handle_top_level_members<'d>(
     cd: &mut CustomDifficulty,
     top_level_members: &Vec<(Spanned<String>, Spanned<Json>)>,
 ) -> anyhow::Result<()> {
-    let mut unique_top_level_members: BTreeMap<Spanned<String>, Spanned<Json>> = BTreeMap::new();
+    let mut unique_top_level_members: IndexMap<Spanned<String>, Spanned<Json>> = IndexMap::new();
     let mut unique_top_level_member_names = BTreeSet::new();
     for (member_name, member_val) in top_level_members {
         if !unique_top_level_member_names.insert(member_name.val.to_owned()) {

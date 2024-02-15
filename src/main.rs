@@ -1,5 +1,6 @@
 #![feature(let_chains)]
 #![feature(min_specialization)]
+#![feature(extract_if)]
 
 use std::path::PathBuf;
 

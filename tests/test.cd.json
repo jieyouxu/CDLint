@@ -1,11 +1,11 @@
 {
     "Name": "Test",
     "EnemyDescriptors": {
-        "ED_Grabber": {
+        "ED_Spider_Grunt": {
             "Base": "ED_Spider_Grunt"
         },
-        "ED_Spider_Grunt": {
-            "Base": "ED_Grabber"
+        "ED_Grabber": {
+            "Base": "ED_Spider_Grunt"
         },
         "ED_Custom": {
             "Base": "ED_Grabber"
@@ -18,6 +18,9 @@
         },
         "ED_A": {
             "Base": "ED_C"
+        },
+        "ED_Spider_Grunt_Guard": {
+            "Base": "ED_Spider_Grunt_Guard"
         }
     }
 }

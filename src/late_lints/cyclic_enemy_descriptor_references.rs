@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
 use ariadne::{Color, Fmt, Report, ReportKind};
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use petgraph::{
     algo::tarjan_scc,
     dot::{Config as DotConfig, Dot},
@@ -34,9 +34,11 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
     path: &'d String,
     diag: &mut Diagnostics<'d>,
 ) -> anyhow::Result<()> {
+    debug!("lint_cyclic_enemy_descriptor_references");
+
     // An unweighted directed graph consisting of Enemy Descriptor nodes and "based-on" directed
     // edges.
-    let mut graph: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut graph: IndexMap<String, IndexSet<String>> = IndexMap::new();
 
     for (name, ed) in &cd.enemy_descriptors.val {
         let name = &name.val;
@@ -47,7 +49,7 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
             .and_modify(|e| {
                 e.insert(ed.base.val.to_owned());
             })
-            .or_insert_with(|| HashSet::from([ed.base.val.to_owned()]));
+            .or_insert_with(|| IndexSet::from([ed.base.val.to_owned()]));
     }
 
     // Assign IDs to each of the Enemy Descriptors.
@@ -79,17 +81,62 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
         edges.push(edge_idx);
     }
 
-    let cycles = elementary_circuits(&digraph);
+    let mut cycles = elementary_circuits(&digraph);
+    let self_cycles = cycles
+        .extract_if(|cycle| cycle.len() == 1)
+        .map(|v| v[0])
+        .collect::<Vec<_>>();
 
-    if cycles.is_empty() {
-        return Ok(());
+    if !cycles.is_empty() {
+        diag.push(
+            Report::build(ReportKind::Error, path, cd.enemy_descriptors.span.start)
+                .with_message("cycle detected in Enemy Descriptor \"Base\" references")
+                .finish(),
+        );
     }
 
-    diag.push(
-        Report::build(ReportKind::Error, path, cd.enemy_descriptors.span.start)
-            .with_message("cycle detected in Enemy Descriptor \"Base\" references")
-            .finish(),
-    );
+    let unspanned_enemy_descriptors = cd
+        .enemy_descriptors
+        .val
+        .iter()
+        .map(|(name, ed)| (name.val.to_owned(), ed.val.base.val.to_owned()))
+        .collect::<IndexMap<_, _>>();
+
+    debug!(?unspanned_enemy_descriptors);
+
+    for self_cycle in self_cycles {
+        let node_idx = digraph
+            .edge_references()
+            .find(|er| er.id() == self_cycle)
+            .map(|er| er.source())
+            .unwrap();
+        let name = id_to_name.get(&node_idx).unwrap();
+        let self_cycle_idx = unspanned_enemy_descriptors
+            .get_index_of(name.as_str())
+            .unwrap();
+        let Some(rest) = unspanned_enemy_descriptors.get_range((self_cycle_idx + 1)..) else {
+            break;
+        };
+        debug!(?rest);
+
+        for (other_name, based_on) in rest {
+            if based_on == name {
+                diag.push(
+                    Report::build(ReportKind::Error, path, cd.enemy_descriptors.span.start)
+                        .with_message(format!(
+                            "\"{}\" is self-referential, but \"{}\" references it later, which will cause a crash",
+                            name.fg(Color::Blue),
+                            other_name.fg(Color::Blue)
+                        ))
+                        .with_help(format!(
+                            "consider moving the self-referential \"{}\" to the end of the Enemy Descriptors list",
+                            name.fg(Color::Blue)
+                        ))
+                        .finish(),
+                );
+            }
+        }
+    }
 
     for (i, cycle) in cycles.iter().enumerate() {
         let mut cycle_string = String::new();
@@ -108,10 +155,6 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
 
         for (j, node_idx) in cycle_nodes.iter().enumerate() {
             let name = id_to_name.get(node_idx).unwrap();
-            // A -> B (A, B)
-            // A -> B -> C (A, B) (B, C)
-            // A -> B -> C -> D (A, B) (B, C) (C, D)
-
             let partial = if j == 0 {
                 format!("\"{}\"", name.fg(Color::Blue))
             } else {

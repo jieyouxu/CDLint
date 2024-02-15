@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use chumsky::span::SimpleSpan;
 use indexmap::IndexMap;
 use serde::Deserialize;
@@ -65,7 +63,7 @@ pub struct EscortMule {
 }
 
 #[derive(Debug, PartialEq, Default, Deserialize)]
-pub struct PawnStats(pub BTreeMap<Spanned<String>, Spanned<f64>>);
+pub struct PawnStats(pub IndexMap<Spanned<String>, Spanned<f64>>);
 
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
