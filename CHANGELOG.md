@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Change file generation (incl. config) to be next to the executable.
+
 ## [0.1.12] - 2024-02-15
 
 - Fix `cyclic-enemy-descriptor-references` to populate name <-> id maps
