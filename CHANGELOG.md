@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+## [0.1.10] - 2024-02-15
+
 - Generate and load config at `$CWD`.
 - Handle self-cycles and use-into-cycle-cycles cases in
   `cyclic-enemy-descriptor-references` lint.
@@ -53,7 +55,8 @@
 - Initial test release
 
 <!-- next-url -->
-[Unreleased]: https://github.com/jieyouxu/CDLint/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/jieyouxu/CDLint/compare/v0.1.10...HEAD
+[0.1.10]: https://github.com/jieyouxu/CDLint/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/jieyouxu/CDLint/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/jieyouxu/CDLint/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/jieyouxu/CDLint/compare/v0.1.6...v0.1.7
