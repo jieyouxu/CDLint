@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
-use ariadne::{Color, Fmt, Report, ReportKind};
+use ariadne::{Color, Fmt, Label, Report, ReportKind};
 use indexmap::{IndexMap, IndexSet};
 use petgraph::{
     algo::tarjan_scc,
@@ -99,7 +99,12 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
         .enemy_descriptors
         .val
         .iter()
-        .map(|(name, ed)| (name.val.to_owned(), ed.val.base.val.to_owned()))
+        .map(|(name, ed)| {
+            (
+                name.val.to_owned(),
+                (ed.val.base.val.to_owned(), name.span, ed.val.base.span),
+            )
+        })
         .collect::<IndexMap<_, _>>();
 
     debug!(?unspanned_enemy_descriptors);
@@ -119,15 +124,24 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
         };
         debug!(?rest);
 
-        for (other_name, based_on) in rest {
+        for (other_name, (based_on, other_name_span, ed_base_span)) in rest {
             if based_on == name {
                 diag.push(
-                    Report::build(ReportKind::Error, path, cd.enemy_descriptors.span.start)
+                    Report::build(ReportKind::Error, path, other_name_span.start)
                         .with_message(format!(
                             "\"{}\" is self-referential, but \"{}\" references it later, which will cause a crash",
                             name.fg(Color::Blue),
                             other_name.fg(Color::Blue)
                         ))
+                        .with_label(
+                            Label::new((path, ed_base_span.into_range()))
+                                .with_color(Color::Red)
+                                .with_message(format!(
+                                    "\"{}\" references \"{}\" here",
+                                    other_name.fg(Color::Blue),
+                                    name.fg(Color::Blue)
+                                ))
+                        )
                         .with_help(format!(
                             "consider moving the self-referential \"{}\" to the end of the Enemy Descriptors list",
                             name.fg(Color::Blue)

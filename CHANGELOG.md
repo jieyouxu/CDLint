@@ -4,6 +4,8 @@
 ## [Unreleased] - ReleaseDate
 
 - Generate and load config at `$CWD`.
+- Handle self-cycles and use-into-cycle-cycles cases in
+  `cyclic-enemy-descriptor-references` lint.
 
 ## [0.1.9] - 2024-02-14
 
