@@ -3,6 +3,9 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Fix `cyclic-enemy-descriptor-references` to populate name <-> id maps
+  with vanilla and user-specified Enemy Descriptors.
+
 ## [0.1.11] - 2024-02-15
 
 - Account for user-specified extra Enemy Descriptors when considering
