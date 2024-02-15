@@ -1360,7 +1360,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                 }
             }
 
-            const EXPECTED_MEMBERS: [&str; 48] = [
+            const EXPECTED_MEMBERS: [&str; 49] = [
                 "PST_BarrelKicking",
                 "PST_CarriableThrowing",
                 "PST_CarryingCapacity",
@@ -1409,6 +1409,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                 "PST_SprintSpeed",
                 "PST_Ziplline_DownBoost",
                 "PST_ZipllineSpee",
+                "PST_PiercingResistance",
             ];
 
             for found_member_name in unique_members.keys() {
@@ -1416,7 +1417,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                     let mut report =
                         Report::build(ReportKind::Error, path, found_member_name.span.start)
                             .with_message(format!(
-                                "unexpected member \"{}\" when expecting a weighted range",
+                                "unexpected pawn stat \"{}\"",
                                 found_member_name.val
                             ))
                             .with_label(
@@ -1434,7 +1435,7 @@ fn handle_enemy_descriptors<'d, 'a, 'n>(
                         ));
                     }
                     report.finish().print((path, Source::from(src)))?;
-                    bail!("unexpected member when trying to process a weighted range object");
+                    bail!("unexpected member when trying to process a pawn stat");
                 }
             }
 
