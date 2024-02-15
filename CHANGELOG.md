@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Generate and load config at `$CWD`.
+
 ## [0.1.9] - 2024-02-14
 
 - Fix cycle string for `cyclic-enemy-descriptor-references` lint.
