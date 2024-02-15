@@ -17,14 +17,14 @@ to the Custom Difficulty JSON file you wish to lint:
 
 ### Configuration File
 
-By default, CDLint will generate a `config.toml` configuration file in the
-current working directory. You can specify e.g. which custom
+By default, CDLint will generate a `config.toml` configuration file next to
+the executable. You can specify e.g. which custom
 Enemy Descriptors you have added via modding (e.g. added by MEV).
 
 ### Consuming `cyclic_enemy_descriptor_references.dot`
 
 The `cyclic_enemy_descriptor_references` lint can generate
-`cyclic_enemy_descriptor_references.dot` under the current working directory
+`cyclic_enemy_descriptor_references.dot` next to the executable
 if `generate_cyclic_reference_graph` is `true` in `config.toml`
 
 This `.dot` file can be fed to [graphviz](https://graphviz.org/download/)

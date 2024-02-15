@@ -215,7 +215,8 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
             Dot::with_config(&digraph, &[DotConfig::EdgeNoLabel])
         );
 
-        let out_dir = std::env::current_dir()?;
+        let exe_path = std::env::current_exe()?;
+        let out_dir = exe_path.parent().unwrap();
         let out_file = out_dir.join("cyclic_enemy_descriptor_references.dot");
         std::fs::write(
             out_file,

@@ -48,7 +48,8 @@ pub(crate) fn dummy_sp() -> SimpleSpan {
 fn main() -> anyhow::Result<()> {
     logging::setup_logging();
 
-    let config_path = PathBuf::from("config.toml");
+    let exe_path = std::env::current_exe()?;
+    let config_path = exe_path.parent().unwrap().join("config.toml");
     debug!(?config_path);
     if !config_path.exists() {
         debug!("generating default config at `{}`", config_path.display());
