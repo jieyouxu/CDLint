@@ -49,14 +49,19 @@ fn main() -> anyhow::Result<()> {
     logging::setup_logging();
 
     let exe_path = std::env::current_exe()?;
+
     let config_path = exe_path.parent().unwrap().join("config.toml");
+    info!("trying to read config from `{}`", config_path.display());
     debug!(?config_path);
+    debug!("config exists: {}", config_path.exists());
     if !config_path.exists() {
-        debug!("generating default config at `{}`", config_path.display());
+        warn!("no existing config detected, default config will be generated and default config values will be used");
+        info!("generating default config at `{}`", config_path.display());
         let default_config = confique::toml::template::<Config>(FormatOptions::default());
         std::fs::write(&config_path, default_config)?;
     }
-    let config = Config::builder().env().file(&config_path).load()?;
+    let config = Config::builder().file(&config_path).load()?;
+    debug!(?config);
 
     let cli = Args::parse();
 

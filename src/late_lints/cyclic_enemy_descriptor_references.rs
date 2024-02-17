@@ -1,6 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::Hash;
 
+use anyhow::bail;
 use ariadne::{Color, Fmt, Label, Report, ReportKind};
 use indexmap::{IndexMap, IndexSet};
 use petgraph::{
@@ -35,28 +36,47 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
     path: &'d String,
     diag: &mut Diagnostics<'d>,
 ) -> anyhow::Result<()> {
-    debug!("lint_cyclic_enemy_descriptor_references");
-
     // An unweighted directed graph consisting of Enemy Descriptor nodes and "based-on" directed
     // edges.
+    let mut defined_descriptors: BTreeSet<String> = BTreeSet::new();
+    defined_descriptors.extend(VANILLA_ENEMY_DESCRIPTORS.iter().map(ToString::to_string));
+    defined_descriptors.extend(
+        config
+            .extra_enemy_descriptors
+            .iter()
+            .map(ToString::to_string),
+    );
+
     let mut graph: IndexMap<String, IndexSet<String>> = IndexMap::new();
 
     for (name, ed) in &cd.enemy_descriptors.val {
         let name = &name.val;
         let ed = &ed.val;
 
+        defined_descriptors.insert(name.to_string());
+
+        if !defined_descriptors.contains(&ed.base.val) {
+            // We haven't seen this descriptor, it is not a vanilla or custom descriptor,
+            // this might be an undefined reference that would be handled by another lint.
+            // Bail now!
+            bail!(format!(
+                "undefined Enemy Descriptor \"{}\" encountered",
+                ed.base.val
+            ));
+        }
+
         graph
-            .entry(name.to_owned())
+            .entry(name.to_string())
             .and_modify(|e| {
-                e.insert(ed.base.val.to_owned());
+                e.insert(ed.base.val.to_string());
             })
-            .or_insert_with(|| IndexSet::from([ed.base.val.to_owned()]));
+            .or_insert_with(|| IndexSet::from([ed.base.val.to_string()]));
     }
 
-    debug!("graph =\n{:#?}", graph);
+    trace!("graph =\n{:#?}", graph);
 
     // Assign IDs to each of the Enemy Descriptors.
-    let mut vertices = Vec::new();
+    let mut vertices = IndexSet::new();
     vertices.extend(
         config
             .extra_enemy_descriptors
@@ -65,38 +85,38 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
     );
     vertices.extend(VANILLA_ENEMY_DESCRIPTORS.iter().map(ToString::to_string));
     vertices.extend(graph.keys().map(ToString::to_string));
-    let mut string_edges = Vec::new();
+    let mut string_edges = IndexSet::new();
     for (name, adjs) in &graph {
         for adj in adjs {
-            string_edges.push((name.to_owned(), adj.to_owned()));
+            string_edges.insert((name.to_owned(), adj.to_owned()));
         }
     }
 
-    debug!("vertices = {:#?}", vertices);
-    debug!("string_edges = {:#?}", string_edges);
+    trace!("vertices = {:#?}", vertices);
+    trace!("string_edges = {:#?}", string_edges);
 
     let mut digraph: DiGraph<String, ()> = DiGraph::new();
-    let mut name_to_id: HashMap<String, NodeIndex> = HashMap::new();
-    let mut id_to_name: HashMap<NodeIndex, String> = HashMap::new();
+    let mut name_to_id: BTreeMap<String, NodeIndex> = BTreeMap::new();
+    let mut id_to_name: BTreeMap<NodeIndex, String> = BTreeMap::new();
     for node in vertices {
         let node_idx = digraph.add_node(node.to_string());
         name_to_id.insert(node.to_string(), node_idx);
         id_to_name.insert(node_idx, node.to_string());
     }
 
-    debug!("name_to_id = {:#?}", name_to_id);
-    debug!("id_to_name = {:#?}", id_to_name);
+    trace!("name_to_id = {:#?}", name_to_id);
+    trace!("id_to_name = {:#?}", id_to_name);
 
-    let mut edges = Vec::new();
+    let mut edges = IndexSet::new();
 
     for (v, w) in string_edges {
-        debug!(?v, ?w);
+        trace!(?v, ?w);
         let edge_idx = digraph.add_edge(
             *name_to_id.get(&v).unwrap(),
             *name_to_id.get(&w).unwrap(),
             (),
         );
-        edges.push(edge_idx);
+        edges.insert(edge_idx);
     }
 
     let mut cycles = elementary_circuits(&digraph);
@@ -125,7 +145,7 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
         })
         .collect::<IndexMap<_, _>>();
 
-    debug!(?unspanned_enemy_descriptors);
+    trace!(?unspanned_enemy_descriptors);
 
     for self_cycle in self_cycles {
         let node_idx = digraph
@@ -140,7 +160,7 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
         let Some(rest) = unspanned_enemy_descriptors.get_range((self_cycle_idx + 1)..) else {
             break;
         };
-        debug!(?rest);
+        trace!(?rest);
 
         for (other_name, (based_on, other_name_span, ed_base_span)) in rest {
             if based_on == name {
@@ -210,7 +230,7 @@ pub fn lint_cyclic_enemy_descriptor_references<'d>(
     }
 
     if config.generate_cyclic_reference_graph {
-        debug!(
+        trace!(
             "{:?}",
             Dot::with_config(&digraph, &[DotConfig::EdgeNoLabel])
         );

@@ -51,7 +51,7 @@ fn handle_single_item_or_array_number<'d, 'a, 'n, T: 'static>(
         Json::Array(a) => {
             let mut arr = Vec::new();
             for elem in &a.val {
-                debug!("elem.val = {:?}", &elem.val);
+                trace!("elem.val = {:?}", &elem.val);
                 match &elem.val {
                     Json::Num(a) => match validate(Box::new(a.val.to_owned()), a.span) {
                         ValidationResult::Ok(val) => {
@@ -338,8 +338,8 @@ fn handle_weighted_range_vec<'d, 'a, 'n, T>(
                 .find(|(k, _)| k.val == "min")
                 .map(|(_, v)| v)
             else {
-                debug!(?range_member);
-                debug!("\n{}", &src[range_member.span.into_range()]);
+                trace!(?range_member);
+                trace!("\n{}", &src[range_member.span.into_range()]);
                 missing_expected_member(path, range_member, "min")
                     .print((path, Source::from(src)))?;
                 bail!("missing expected member: \"min\"");

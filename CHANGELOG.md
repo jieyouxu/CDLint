@@ -3,6 +3,9 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Fix `cyclic-enemy-descriptor-references` lint causing a crash when custom
+  Enemy Descriptors are not specified.
+
 ## [0.1.13] - 2024-02-15
 
 - Change file generation (incl. config) to be next to the executable.
