@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+## [0.1.14] - 2024-02-17
+
 - Fix `cyclic-enemy-descriptor-references` lint causing a crash when custom
   Enemy Descriptors are not specified.
 
@@ -72,7 +74,8 @@
 - Initial test release
 
 <!-- next-url -->
-[Unreleased]: https://github.com/jieyouxu/CDLint/compare/v0.1.13...HEAD
+[Unreleased]: https://github.com/jieyouxu/CDLint/compare/v0.1.14...HEAD
+[0.1.14]: https://github.com/jieyouxu/CDLint/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/jieyouxu/CDLint/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/jieyouxu/CDLint/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/jieyouxu/CDLint/compare/v0.1.10...v0.1.11
