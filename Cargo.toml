@@ -14,15 +14,6 @@ authors = ["jieyouxu"]
 inherits = "release"
 lto = "thin"
 
-[workspace.dependencies]
-tracing = { version = "0.1.40", features = ["attributes"] }
-tracing-subscriber = { version = "0.3.18", features = [
-  "fmt",
-  "env-filter",
-  "std",
-  "registry",
-] }
-
 # Config for 'cargo dist'
 [workspace.metadata.dist]
 # The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
