@@ -1,0 +1,10 @@
+[package]
+name = "puffball"
+version = "0.1.0"
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[dependencies]

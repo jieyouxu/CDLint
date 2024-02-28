@@ -1,8 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-    "cdlint",
-]
+members = ["cdlint", "puffball"]
 
 [workspace.package]
 repository = "https://github.com/jieyouxu/CDLint"
@@ -16,6 +14,15 @@ authors = ["jieyouxu"]
 inherits = "release"
 lto = "thin"
 
+[workspace.dependencies]
+tracing = { version = "0.1.40", features = ["attributes"] }
+tracing-subscriber = { version = "0.3.18", features = [
+  "fmt",
+  "env-filter",
+  "std",
+  "registry",
+] }
+
 # Config for 'cargo dist'
 [workspace.metadata.dist]
 # The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
@@ -25,7 +32,12 @@ ci = ["github"]
 # The installers to generate for each app
 installers = []
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+]
 # Publish jobs to run in CI
 pr-run-mode = "plan"
 
@@ -33,9 +45,9 @@ pr-run-mode = "plan"
 shared-version = true
 publish = false
 pre-release-replacements = [
-  {file="CHANGELOG.md", search="Unreleased", replace="{{version}}", min=1},
-  {file="CHANGELOG.md", search="\\.\\.\\.HEAD", replace="...{{tag_name}}", exactly=1},
-  {file="CHANGELOG.md", search="ReleaseDate", replace="{{date}}", min=1},
-  {file="CHANGELOG.md", search="<!-- next-header -->", replace="<!-- next-header -->\n## [Unreleased] - ReleaseDate\n", exactly=1},
-  {file="CHANGELOG.md", search="<!-- next-url -->", replace="<!-- next-url -->\n[Unreleased]: https://github.com/jieyouxu/CDLint/compare/{{tag_name}}...HEAD", exactly=1},
+  { file = "CHANGELOG.md", search = "Unreleased", replace = "{{version}}", min = 1 },
+  { file = "CHANGELOG.md", search = "\\.\\.\\.HEAD", replace = "...{{tag_name}}", exactly = 1 },
+  { file = "CHANGELOG.md", search = "ReleaseDate", replace = "{{date}}", min = 1 },
+  { file = "CHANGELOG.md", search = "<!-- next-header -->", replace = "<!-- next-header -->\n## [Unreleased] - ReleaseDate\n", exactly = 1 },
+  { file = "CHANGELOG.md", search = "<!-- next-url -->", replace = "<!-- next-url -->\n[Unreleased]: https://github.com/jieyouxu/CDLint/compare/{{tag_name}}...HEAD", exactly = 1 },
 ]
