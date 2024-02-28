@@ -37,3 +37,9 @@ dot -Tpng cyclic_enemy_descriptor_references.dot -o cyclic_enemy_descriptor_refe
 which will produce a graph like:
 
 ![A screenshot of cyclic dependencies](./assets/cyclic.png)
+
+## Versioning
+
+This repo uses virtual workspace and uses unified versioning for all constituent packages. Its
+library packages are not intended for consumption by other crates. This repo does not strictly
+adhere to semver and may change version numbers liberally.
