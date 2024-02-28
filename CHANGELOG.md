@@ -3,6 +3,9 @@
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+- Reorganize into virtual workspace with a single binary package `cdlint`, to accomodate for other
+  support library packages.
+
 ## [0.1.14] - 2024-02-17
 
 - Fix `cyclic-enemy-descriptor-references` lint causing a crash when custom
